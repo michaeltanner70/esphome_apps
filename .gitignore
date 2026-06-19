@@ -1,0 +1,11 @@
+# ESPHome lokale Secrets niemals committen
+secrets.yaml
+**/secrets.yaml
+
+# ESPHome Build-Artefakte
+.esphome/
+**/.esphome/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
