@@ -12,6 +12,7 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 - **Statusbits:** pH-Minus-Pumpe (`0x0107`), Ionisierungs- (`0x010C`) und Redox-Statusbits (`0x010D`) als Binary-Sensoren.
 - **Konnektivität:** Home-Assistant-API (verschlüsselt), WiFi mit AP-Fallback, OTA und lokaler Webserver (Port 80).
 - **Diagnose:** Einbindung des gemeinsamen `common/diagnostics.yaml`-Packages sowie eines API-Verbindungsstatus-Sensors.
+- **Feste Antennenwahl:** Beim Boot (`on_boot`, Priorität 800) wird der Onboard-RF-Switch über `GPIO3` aktiviert und mit `GPIO14` fest die interne Keramikantenne gewählt – der Funkpfad ist damit unabhängig vom Auslieferungszustand des XIAO-Moduls eindeutig definiert.
 - **Entity-Benennung:** Nummeriertes Schema (Kategorie `1.x` für projektspezifische Sensoren) passend zum Sortierkonzept des common-Packages.
 
 ### Sicherheit

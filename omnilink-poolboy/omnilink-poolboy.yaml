@@ -25,6 +25,12 @@ esphome:
   project:
     name: "twm.omnilink-poolboy"
     version: "${fw_version}"
+  on_boot:
+    priority: 800
+    then:
+      - output.turn_off: rf_switch_enable   # GPIO3 LOW  -> RF-Switch-Steuerung aktiv
+      - delay: 100ms
+      - output.turn_off: rf_antenna_select  # GPIO14 LOW -> interne Keramikantenne
 
 esp32:
   board: esp32-c6-devkitc-1
@@ -65,6 +71,20 @@ captive_portal:
 
 web_server:
   port: 80
+
+# ----------------------------------------------------------------------------
+#  Antennen-Steuerung (XIAO ESP32-C6, modul-interne Pins)
+#    GPIO3  LOW = HF-Schalter aktiv
+#    GPIO14 LOW = interne Keramikantenne (HIGH waere externe u.FL-Antenne)
+#  Wird beim Boot (on_boot, prio 800) fest auf die interne Antenne gesetzt.
+# ----------------------------------------------------------------------------
+output:
+  - platform: gpio
+    pin: GPIO3
+    id: rf_switch_enable
+  - platform: gpio
+    pin: GPIO14
+    id: rf_antenna_select
 
 # ----------------------------------------------------------------------------
 #  RS485 / Modbus RTU  (19200 8N1, Slave 0x01)
