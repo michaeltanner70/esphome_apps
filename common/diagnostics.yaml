@@ -10,10 +10,12 @@ substitutions:
   diag_min_heap_critical: "8000"
   diag_wifi_signal_ok: "-70"
   diag_wifi_signal_critical: "-85"
-  # Brücke von secrets.yaml zu den Substitutions
+  # Brücke von secrets.yaml zu den Substitutions (AP-BSSIDs)
   bssid_ug: !secret mac_bssid_ug
-  bssid_eg: !secret mac_bssid_eg
+  bssid_garten: !secret mac_bssid_garten
   bssid_dg: !secret mac_bssid_dg
+  bssid_eg_west: !secret mac_bssid_eg_west
+  bssid_eg_ost: !secret mac_bssid_eg_ost
   # Version der Diagnostics
   version: "1.2.1"
 
@@ -104,10 +106,14 @@ text_sensor:
       // Die Werte werden beim Kompilieren automatisch durch die Secrets ersetzt
       if (bssid == "${bssid_ug}") {
         return {"🏠 UG"};
-      } else if (bssid == "${bssid_eg}") {
-        return {"🏠 EG"};
+      } else if (bssid == "${bssid_garten}") {
+        return {"🌱 Garten"};
       } else if (bssid == "${bssid_dg}") {
         return {"🏠 DG"};
+      } else if (bssid == "${bssid_eg_west}") {
+        return {"🏠 EG West"};
+      } else if (bssid == "${bssid_eg_ost}") {
+        return {"🏠 EG Ost"};
       } else if (bssid.empty() || bssid == "None") {
         return {"⚠️ Nicht verbunden"};
       } else {
