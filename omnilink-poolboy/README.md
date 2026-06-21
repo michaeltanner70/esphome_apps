@@ -76,7 +76,7 @@ Der OmniLink-PoolBoy liest die Mess- und Statusregister des PoolBoy-Elektrolyseg
 ## 4. Inbetriebnahme
 
 1. Zentrale `secrets.yaml` im **Repo-Root** anlegen (siehe [`secrets.yaml.example`](../secrets.yaml.example)) und mindestens `wifi_ssid`, `wifi_password` sowie die `poolboy_*`-Keys eintragen.
-2. Erstflash per USB-C – kompiliert wird **vom Repo-Root aus** (wegen `!include ../common/...`):
+2. Erstflash per USB-C – kompiliert wird **vom Repo-Root aus** (wegen `!include common/...`):
    ```bash
    esphome run omnilink-poolboy/omnilink-poolboy.yaml
    ```

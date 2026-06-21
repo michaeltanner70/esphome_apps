@@ -39,8 +39,9 @@ esp32:
     type: esp-idf
 
 # Gemeinsames Diagnose-Package (WLAN/Heap/Uptime/Version/Restart-Buttons)
+# Pfad relativ zum Aufruf-Verzeichnis -> ESPHome vom Repo-Root aus starten.
 packages:
-  diagnostics: !include ../common/diagnostics.yaml
+  diagnostics: !include common/diagnostics.yaml
 
 # ----------------------------------------------------------------------------
 #  Logging

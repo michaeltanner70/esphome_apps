@@ -32,7 +32,7 @@ Um die Wartung so einfach wie möglich zu halten, ist dieses Repository als Mono
 cp secrets.yaml.example secrets.yaml   # danach echte Werte eintragen
 ```
 
-**Kompilieren / Flashen:** ESPHome wird **vom Repo-Root aus** aufgerufen, damit sowohl `!include ../common/...` als auch die zentrale `secrets.yaml` aufgelöst werden:
+**Kompilieren / Flashen:** ESPHome wird **vom Repo-Root aus** aufgerufen, damit sowohl `!include common/...` als auch die zentrale `secrets.yaml` aufgelöst werden (beide Pfade sind relativ zum Aufruf-Verzeichnis):
 
 ```bash
 esphome run omnilink-poolboy/omnilink-poolboy.yaml
