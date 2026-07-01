@@ -18,9 +18,11 @@ YAML. Umfang der ersten Version: **nur Modbus**.
 
 ---
 
-## 2. Hardware-Analyse (OmniLink-C6, Rev 1.0, TW microsystems)
+## 2. Hardware-Analyse (OmniLink-C6, TW microsystems)
 
-Quelle: Schaltplan (EasyEDA, gezeichnet von michael.tanner, 2026-05-10).
+Quelle: Schaltplan (EasyEDA, gezeichnet von michael.tanner, 2026-05-10, Rev 1.0).
+Vollständige PCB-Dateien (Schaltplan, Layout, Gerbers, BOM, Änderungshistorie
+inkl. Rev 2.0) liegen in [`omnilink-c6/`](../omnilink-c6).
 
 Wichtigster Punkt: Der Controller ist ein **Seeed Studio XIAO ESP32-C6** (U3) —
 **nicht** der ESP32-S3 aus dem alten YAML. Die GPIO-Belegung ist daher komplett
@@ -52,8 +54,11 @@ anders und stammt aus dem Schaltplan, nicht aus dem alten File.
 
 ### Weitere Stecker / Versorgung
 
-- **J3** DC 12 V Eingang → Verpolschutz/Schutzdiode → **LM2675M-5.0** Buck → 5 V;
-  XIAO erzeugt daraus 3,3 V
+- **J3** DC 12 V Eingang → Verpolschutz/Schutzdiode → **U2 = LM2675M-5.0** Buck → 5 V;
+  XIAO erzeugt daraus 3,3 V. `ON/OFF#` von U2 ist ab Rev 2.0 nicht mehr extern
+  beschaltet (NC) — der Regler hat einen internen Pull-Up und ist damit ohne
+  externe Beschaltung dauerhaft aktiv. Firmwareseitig ohne Auswirkung (Pin
+  war nie mit dem XIAO verbunden).
 - **J4 FTDI**: greift RX/TX/DIR ab (Debug; teilt sich die Modbus-UART)
 - **J2 BAT 3,7 V**: LiPo an die BAT-Pins des XIAO
 

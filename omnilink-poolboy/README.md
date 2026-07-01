@@ -34,7 +34,7 @@ Der OmniLink-PoolBoy liest die Mess- und Statusregister des PoolBoy-Elektrolyseg
 
 | Komponente | Detail |
 | :--- | :--- |
-| Platine | OmniLink-C6 (TW microsystems, Rev 1.0) |
+| Platine | [OmniLink-C6](../omnilink-c6) (TW microsystems, Rev 2.0) |
 | MCU | Seeed Studio XIAO ESP32-C6 |
 | RS485-Transceiver | SN65HVD75DR (Half-Duplex, DE+RE# = „DIR") |
 | Bus-Anschluss | Schraubklemme J7 (A/B), 120 Ω Terminierung, Fail-Safe-Bias |

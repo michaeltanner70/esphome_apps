@@ -20,6 +20,7 @@ Um die Wartung so einfach wie möglich zu halten, ist dieses Repository als Mono
 | Ordner / Projekt | Kurzbeschreibung | Status / Version |
 | :--- | :--- | :--- |
 | [**`omnilink-poolboy`**](./omnilink-poolboy) | Auslesung eines PoolBoy-Elektrolysegeräts via Modbus RTU (RS485) auf der eigenentwickelten Platine OmniLink-C6 (Seeed XIAO ESP32-C6). Liefert Ionisation, Hydrolyse, pH und Redox samt Statusbits (pH-Minus-Pumpe, Ionisierungs- und Redox-Status) an Home Assistant. | v0.3.0 (in Entwicklung) |
+| [**`omnilink-c6`**](./omnilink-c6) | Trägerplatine (PCB, TW microsystems) rund um das Seeed XIAO ESP32-C6 mit RS485/Modbus, I²C, 1-Wire, WS2812B-Status-LED und HAT-Erweiterung. Basis für `omnilink-poolboy` und künftige Projekte. | Rev 2.0 |
 | [**`common`**](./common) | Wiederverwendbare Code-Bausteine (Packages), aktuell das Diagnose-Paket `diagnostics.yaml` mit WLAN-, Netzwerk- und System-Sensoren für alle Projekte. | v1.2.1 |
 
 ---
