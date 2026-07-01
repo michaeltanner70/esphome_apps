@@ -45,9 +45,9 @@ anders und stammt aus dem Schaltplan, nicht aus dem alten File.
 | I²C SDA | D4 | GPIO22 | J6, 4k7 Pull-up, VCC per Jumper SJ2 (3,3/5 V) |
 | I²C SCL | D5 | GPIO23 | J6 |
 | 1-Wire | D1 | GPIO1 | J5, 4k7 Pull-up (R17) |
-| Status-LED WS2812B | D3 | GPIO21 | U1 (5050WS2812B) |
+| Status-LED WS2812B (MSG) | D3 | GPIO21 | U1 (5050WS2812B), Wasserwerte-Farbe + Poll-Flackern (v0.3.0); teilt sich die Leitung mit einer diskreten grünen LED |
 | HAT1 / HAT2 / HAT3 | D8 / D9 / D10 | GPIO19 / GPIO20 / GPIO18 | J1, Pull-up/down per SJ1 |
-| Diskrete LEDs STAT/MSG | D0 (u. a.) | GPIO0 | unkritisch |
+| Diskrete LED STATUS | D0 | GPIO0 | blaue LED, ESPHome-/API-Blinkstatus (v0.2.0) |
 | Batterie | BAT+ / BAT- | — | J2 (LiPo 3,7 V) |
 
 ### Weitere Stecker / Versorgung
@@ -57,9 +57,10 @@ anders und stammt aus dem Schaltplan, nicht aus dem alten File.
 - **J4 FTDI**: greift RX/TX/DIR ab (Debug; teilt sich die Modbus-UART)
 - **J2 BAT 3,7 V**: LiPo an die BAT-Pins des XIAO
 
-> Hinweis: I²C, 1-Wire, WS2812-LED, HAT-Eingänge usw. sind **bewusst nicht** Teil
+> Hinweis: I²C, 1-Wire, HAT-Eingänge usw. sind **bewusst nicht** Teil
 > der ersten Version (Umfang = nur Modbus), aber hardwareseitig vorhanden und
-> später nachrüstbar.
+> später nachrüstbar. Die WS2812-LED (D3) wurde in v0.2.0 als MSG-Statusanzeige
+> aktiviert, siehe Abschnitt 7.
 
 ---
 
@@ -146,7 +147,22 @@ API-Encryption-Key, OTA-Passwort, AP-Passwort.
 - **Diagnose-Entities** (WiFi/Uptime/API-Status) sind Konnektivitäts-Lebenszeichen,
   kein zusätzlicher Funktionsumfang — bei Wunsch entfernbar.
 - **Spätere Erweiterungen** (nicht Teil dieser Version): 1-Wire-Temperatur (J5),
-  I²C (J6), WS2812-Status-LED (GPIO21), HAT-Eingänge (J1).
+  I²C (J6), HAT-Eingänge (J1).
+
+---
+
+## 7. Status-Visualisierung (v0.2.0 / v0.3.0)
+
+| # | Frage | Antwort |
+|---|---|---|
+| 1 | STATUS-LED (blau, D0/GPIO0) | Diskrete LED, kein WS2812. Blinkt langsam (100 ms an / 1200 ms aus) solange keine API-Verbindung steht, schnell (100 ms an / 600 ms aus) sobald verbunden. Off-Zeiten bewusst länger als das MSG-Rot-Blinken (500/500ms) gewählt, damit sich die blaue LED optisch klar davon abhebt und nicht untergeht. |
+| 2 | Umsetzung STATUS | Endlos-`script` (`status_led_run`, per `on_boot` einmalig gestartet) mit `while: true`-Loop, das bei jedem Durchlauf die `api.connected`-Bedingung prüft und die passende An/Aus-Sequenz auf einen `output: platform: gpio` (GPIO0) fährt. |
+| 3 | MSG-LED (D3/GPIO21) | Physisch die vorhandene WS2812B (U1) — **teilt sich die Datenleitung mit einer diskreten grünen LED** (auf dem Schaltplan ursprünglich vage als "STAT/MSG" gruppiert, siehe Abschnitt 2). Ein Leitungstest hat bestätigt: ein reiner Digital-High-Pegel für 200 ms (statt WS2812-Protokoll-Timing) stört die WS2812 nicht, und die grüne LED reagiert sichtbar darauf. |
+| 4 | MSG-LED — Zustände | (a) seit mehr als `msg_led_stale_timeout_ms` (45s) kein gültiger pH-/Redox-Wert (Start **oder** späterer Kommunikations-Unterbruch): blinkt **rot**, 500 ms an / 500 ms aus (`msg_led_monitor`). (b) solange aktuelle Daten da sind: konstante Farbe nach Wasserwerte-Regeln (siehe unten). (c) bei jedem Modbus-Poll: 3× kurzes Flackern (je 50 ms aus / 50 ms Farbe wiederhergestellt, `msg_led_comm_blip`), danach bleibt die Farbe stehen. |
+| 5 | Wasserwerte-Farbregeln | grün: 7.1 < pH < 7.3 **und** Redox > 650mV. rot: pH < 6.9 **oder** > 7.4 **oder** Redox < 600mV. gelb: alles dazwischen (bewusster Sicherheits-Zwischenzustand für die Grenzwert-Lücken, z. B. pH exakt 7.4). |
+| 6 | Umsetzung MSG | `light: platform: esp32_rmt_led_strip` auf GPIO21 (1 LED, WS2812), `internal: true`. Dimmung **zwingend** über den `brightness`-Parameter (Substitution `msg_led_brightness`, aktuell `0.5`) — ESPHomes `light.turn_on` normalisiert `red/green/blue` bei jedem Aufruf automatisch so, dass der grösste Kanal auf 1.0 gesetzt wird (`LightColorValues::normalize_color()`), kleine RGB-Werte allein dimmen also nicht. Farbe wird als Hue (0.0/1.0 je Kanal) in Globals (`msg_led_r/g/b`) gemerkt, damit der Kommunikations-Blitz sie nach dem Flackern wiederherstellen kann. `msg_led_last_update_ms` (Global, `uint32_t`, `millis()`-Zeitstempel) wird bei jedem `msg_led_update_water_color`-Lauf aktualisiert (ausgelöst über `on_value` von pH und Redox); `msg_led_monitor` prüft bei jedem 500ms-Zyklus per `while: true`-Loop, ob dieser Zeitstempel älter als `msg_led_stale_timeout_ms` ist (oder noch `0`, d. h. nie gesetzt) — ein einziger Mechanismus für Startphase **und** spätere Ausfälle. Der Kommunikations-Indikator hängt an `on_value` des zuerst abgefragten Registers „1.0 Ionisation" (0x0100) als Näherung für „ein Modbus-Poll-Zyklus lief". |
+| 7 | Non-blocking bestätigt | `delay:` in ESPHome-Scripts/Automationen läuft über den kooperativen Scheduler (`App.scheduler.set_timer_common_`, siehe `core/base_automation.h`), kein Busy-Wait. Die LED-Scripts blockieren daher weder die Hauptschleife noch die Modbus-UART-Kommunikation. |
+| 8 | HA-Sichtbarkeit | Beide LEDs sind reine Hardware-Statusanzeigen ohne eigene Home-Assistant-Entität. |
 
 ---
 

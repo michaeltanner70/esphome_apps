@@ -13,10 +13,21 @@
 # =============================================================================
 
 substitutions:
-  fw_version: "0.1.0"
+  fw_version: "0.3.0"
   # ESP32-C6: Diagnose-Grenzwerte des common-Packages überschreiben (viel RAM)
   diag_min_heap_ok: "80000"
   diag_min_heap_critical: "40000"
+  # MSG-LED (WS2812): Dimm-Level als master brightness (0.0-1.0). WICHTIG:
+  # ESPHomes light.turn_on normalisiert red/green/blue IMMER so, dass der
+  # größte Kanal auf 1.0 gesetzt wird -- Dimmen funktioniert daher nur über
+  # den separaten brightness-Parameter, nicht über kleine RGB-Werte.
+  msg_led_brightness: "0.5"
+  # MSG-LED: gilt als "keine aktuellen Daten", wenn seit mehr als dieser Zeit
+  # (ms) kein pH-/Redox-Wert mehr per Modbus kam -- deckt sowohl die
+  # Wartezeit auf den allerersten Wert als auch spätere Kommunikations-
+  # Unterbrüche ab. 45s = 1.5x update_interval (30s), toleriert einen
+  # einzelnen verpassten Poll-Zyklus.
+  msg_led_stale_timeout_ms: "45000"
 
 esphome:
   name: omnilink-poolboy
@@ -31,6 +42,8 @@ esphome:
       - output.turn_off: rf_switch_enable   # GPIO3 LOW  -> RF-Switch-Steuerung aktiv
       - delay: 100ms
       - output.turn_off: rf_antenna_select  # GPIO14 LOW -> interne Keramikantenne
+      - script.execute: status_led_run          # blaue STATUS-LED: Blinkmuster starten
+      - script.execute: msg_led_monitor          # MSG-LED: Farbe/Blink je nach Daten-Aktualität
 
 esp32:
   board: esp32-c6-devkitc-1
@@ -89,6 +102,168 @@ output:
   - platform: gpio
     pin: GPIO14
     id: rf_antenna_select
+  - platform: gpio
+    pin: GPIO0
+    id: status_led_output   # XIAO D0 -> diskrete blaue LED "STATUS"
+
+# ----------------------------------------------------------------------------
+#  Status-Visualisierung
+#    STATUS (blau, D0/GPIO0): zeigt ESPHome-/API-Verbindungsstatus per Blinkfrequenz
+#      - langsam (100ms an / 1200ms aus): ESP läuft, API/WLAN noch nicht verbunden
+#      - schnell (100ms an / 600ms aus): API verbunden
+#      (Off-Zeiten bewusst länger als das MSG-Rot-Blinken (500/500ms), damit
+#      sich die blaue LED optisch klar davon abhebt und nicht untergeht.)
+#    MSG (D3/GPIO21, WS2812B): zeigt die Wasserwerte als gedimmte Farbe
+#      (grün/gelb/rot nach pH/Redox, siehe Regeln bei msg_led_update_water_color).
+#      Solange seit mehr als msg_led_stale_timeout_ms kein neuer pH-/Redox-Wert
+#      kam (weder der allererste noch ein aktueller), blinkt sie stattdessen
+#      ROT im Takt 500ms an / 500ms aus (msg_led_monitor) -- das deckt sowohl
+#      die Startphase als auch spätere Kommunikations-Unterbrüche ab. Bei
+#      jeder Modbus-Kommunikation flackert sie kurz 3x (siehe msg_led_comm_blip),
+#      danach bleibt die aktuelle Wasserwerte-Farbe stehen. Geteilte Leitung
+#      mit der diskreten grünen LED getestet: WS2812 wird durch einen langen
+#      Digital-High-Pegel nicht gestört.
+# ----------------------------------------------------------------------------
+light:
+  - platform: esp32_rmt_led_strip
+    id: msg_led
+    pin: GPIO21
+    num_leds: 1
+    rgb_order: GRB
+    chipset: WS2812
+    internal: true   # reine Status-LED, keine HA-Entität
+
+# Merkt sich die zuletzt gesetzte Wasserwerte-Farbe (als volle Hue-Anteile
+# 0.0/1.0 -- die tatsächliche Dimmung läuft separat über brightness, siehe
+# msg_led_apply_color), damit der Kommunikations-Blitz (LED aus) sie danach
+# wiederherstellen kann.
+globals:
+  - id: msg_led_r
+    type: float
+    initial_value: "0.0"
+  - id: msg_led_g
+    type: float
+    initial_value: "1.0"
+  - id: msg_led_b
+    type: float
+    initial_value: "0.0"
+  # Zeitstempel (millis()) der letzten gültigen pH-/Redox-Aktualisierung.
+  # 0 = noch nie -> gilt sofort als "veraltet", siehe msg_led_monitor.
+  - id: msg_led_last_update_ms
+    type: uint32_t
+    initial_value: "0"
+
+script:
+  - id: status_led_run
+    then:
+      - while:
+          condition:
+            lambda: "return true;"
+          then:
+            - if:
+                condition:
+                  api.connected:
+                then:
+                  - output.turn_on: status_led_output
+                  - delay: 100ms
+                  - output.turn_off: status_led_output
+                  - delay: 600ms
+                else:
+                  - output.turn_on: status_led_output
+                  - delay: 100ms
+                  - output.turn_off: status_led_output
+                  - delay: 1200ms
+
+  # Setzt die WS2812 auf die aktuell in msg_led_r/g/b gemerkte Farbe (Hue),
+  # gedimmt über den separaten brightness-Parameter (siehe substitutions).
+  - id: msg_led_apply_color
+    then:
+      - light.turn_on:
+          id: msg_led
+          brightness: ${msg_led_brightness}
+          red: !lambda "return id(msg_led_r);"
+          green: !lambda "return id(msg_led_g);"
+          blue: !lambda "return id(msg_led_b);"
+          transition_length: 0s
+
+  # Merkt sich eine neue Farbe (gedimmte 0.0-1.0-Anteile) und zeigt sie an.
+  - id: msg_led_set_color
+    parameters:
+      r: float
+      g: float
+      b: float
+    then:
+      - globals.set: { id: msg_led_r, value: !lambda "return r;" }
+      - globals.set: { id: msg_led_g, value: !lambda "return g;" }
+      - globals.set: { id: msg_led_b, value: !lambda "return b;" }
+      - script.execute: msg_led_apply_color
+
+  # Kommunikations-Indikator: flackert 3x aus (statt einmalig lang aus zu
+  # gehen), je 50ms aus / 50ms wiederhergestellte Farbe an, dann bleibt
+  # die aktuelle Farbe stehen.
+  - id: msg_led_comm_blip
+    then:
+      - repeat:
+          count: 3
+          then:
+            - light.turn_off:
+                id: msg_led
+                transition_length: 0s
+            - delay: 50ms
+            - script.execute: msg_led_apply_color
+            - delay: 50ms
+
+  # Dauerhafte Überwachung (läuft für immer): solange seit mehr als
+  # msg_led_stale_timeout_ms kein gültiger pH-/Redox-Wert kam (inkl. noch
+  # nie, last_update_ms == 0), blinkt die LED ROT (500ms an / 500ms aus).
+  # Sobald wieder aktuelle Daten da sind, wird die Wasserwerte-Farbe gezeigt.
+  # Deckt damit sowohl die Startphase als auch spätere Kommunikations-
+  # Unterbrüche mit demselben Mechanismus ab.
+  - id: msg_led_monitor
+    then:
+      - while:
+          condition:
+            lambda: "return true;"
+          then:
+            - if:
+                condition:
+                  lambda: |-
+                    return id(msg_led_last_update_ms) == 0 ||
+                           millis() - id(msg_led_last_update_ms) > ${msg_led_stale_timeout_ms};
+                then:
+                  - light.turn_on:
+                      id: msg_led
+                      brightness: ${msg_led_brightness}
+                      red: 1.0
+                      green: 0.0
+                      blue: 0.0
+                      transition_length: 0s
+                  - delay: 500ms
+                  - light.turn_off:
+                      id: msg_led
+                      transition_length: 0s
+                  - delay: 500ms
+                else:
+                  - script.execute: msg_led_apply_color
+                  - delay: 500ms
+
+  # Wertet pH und Redox aus und setzt die Wasserwerte-Farbe. Regeln:
+  #   grün : 7.1 < pH < 7.3  UND  Redox > 650mV
+  #   rot  : pH < 6.9  ODER  pH > 7.4  ODER  Redox < 600mV
+  #   gelb : alles dazwischen (Übergangs-/Warnbereich)
+  - id: msg_led_update_water_color
+    then:
+      - globals.set: { id: msg_led_last_update_ms, value: !lambda "return millis();" }
+      - lambda: |-
+          float ph = id(poolboy_ph).state;
+          float redox = id(poolboy_redox).state;
+          if (redox < 600.0f || ph < 6.9f || ph > 7.4f) {
+            id(msg_led_set_color)->execute(1.0f, 0.0f, 0.0f);   // rot
+          } else if (ph > 7.1f && ph < 7.3f && redox > 650.0f) {
+            id(msg_led_set_color)->execute(0.0f, 1.0f, 0.0f);   // grün
+          } else {
+            id(msg_led_set_color)->execute(1.0f, 1.0f, 0.0f);  // gelb
+          }
 
 # ----------------------------------------------------------------------------
 #  RS485 / Modbus RTU  (19200 8N1, Slave 0x01)
@@ -130,6 +305,11 @@ sensor:
     value_type: U_WORD
     unit_of_measurement: "mA"
     device_class: current
+    # Feuert einmal pro Modbus-Poll-Zyklus (erstes abgefragtes Register) ->
+    # MSG-LED flackert kurz als Kommunikations-Indikator.
+    on_value:
+      then:
+        - script.execute: msg_led_comm_blip
 
   - platform: modbus_controller
     modbus_controller_id: poolboy_device
@@ -156,6 +336,9 @@ sensor:
     accuracy_decimals: 2
     filters:
       - multiply: 0.01
+    on_value:
+      then:
+        - script.execute: msg_led_update_water_color
 
   - platform: modbus_controller
     modbus_controller_id: poolboy_device
@@ -167,6 +350,9 @@ sensor:
     value_type: U_WORD
     unit_of_measurement: "mV"
     device_class: voltage
+    on_value:
+      then:
+        - script.execute: msg_led_update_water_color
 
   - platform: modbus_controller
     modbus_controller_id: poolboy_device
