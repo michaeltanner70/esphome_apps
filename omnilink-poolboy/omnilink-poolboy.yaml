@@ -4,7 +4,7 @@
 #  MCU      : Seeed Studio XIAO ESP32-C6
 #  RS485    : SN65HVD75DR (Half-Duplex, DE+RE# = "DIR")
 #  Funktion : Auslesen des PoolBoy-Elektrolysegeräts via Modbus RTU -> Home Assistant
-#  Ziel     : ESPHome 2026.5.x  (ESP-IDF)
+#  Ziel     : ESPHome 2026.6.5  (ESP-IDF)
 #
 #  Pin-Mapping (aus Schaltplan OmniLink-C6):
 #    RS485 TX  (DI)      = XIAO D6  = GPIO16
@@ -86,6 +86,7 @@ captive_portal:
 web_server:
   port: 80
   auth:
+    type: digest   # sicherer als das (aktuell noch default) 'basic' -- Passwort geht nicht mehr im Klartext übers Netz
     username: !secret web_server_username
     password: !secret web_server_password
 

@@ -15,7 +15,7 @@ Alle in diesem Repository bereitgestellten Inhalte, Codes und Pläne sind rein p
 
 ## Repository-Struktur
 
-Um die Wartung so einfach wie möglich zu halten, ist dieses Repository als Monorepo strukturiert. Jedes eigenständige Projekt besitzt seinen eigenen Unterordner inklusive lokaler Dokumentation.
+Um die Wartung so einfach wie möglich zu halten, ist dieses Repository als Monorepo strukturiert. Jedes eigenständige Projekt besitzt seinen eigenen Unterordner inklusive lokaler Dokumentation: `README.md` (Funktion/Hardware), `CHANGELOG.md` (released Änderungen, [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)) und bei Bedarf eine `BACKLOG.md` (offene Punkte, Ideen, geplante Erweiterungen — bewusst getrennt vom Changelog, das nur tatsächlich released Änderungen dokumentiert).
 
 | Ordner / Projekt | Kurzbeschreibung | Status / Version |
 | :--- | :--- | :--- |

@@ -6,7 +6,7 @@
 
 Dieses ESPHome-Projekt läuft auf der eigenentwickelten Platine **OmniLink-C6** (Seeed Studio XIAO **ESP32-C6**) und liest ein **PoolBoy-Elektrolysegerät** per **Modbus RTU (RS485)** aus. Die Wasser- und Statuswerte werden über die native Home-Assistant-API bereitgestellt.
 
-> **Umfang dieser Version:** Modbus sowie die STATUS-/MSG-Status-LEDs. I²C, 1-Wire und die HAT-Eingänge sind auf der Platine vorhanden, aber noch nicht implementiert (siehe [Design-Dokument](./Design_omnilink-poolboy.md)).
+> **Umfang dieser Version:** Modbus sowie die STATUS-/MSG-Status-LEDs. I²C, 1-Wire und die HAT-Eingänge sind auf der Platine vorhanden, aber noch nicht implementiert (siehe [BACKLOG.md](./BACKLOG.md)).
 
 ---
 

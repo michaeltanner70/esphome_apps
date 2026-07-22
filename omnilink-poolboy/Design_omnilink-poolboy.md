@@ -145,14 +145,14 @@ API-Encryption-Key, OTA-Passwort, AP-Passwort.
 ## 6. Offene Hinweise / nächste Schritte
 
 - **Board-Bezeichner**: `esp32-c6-devkitc-1` + `variant: esp32c6` ist der robuste
-  Weg. Falls ESPHome 2026.5.3 zickt, Alternative: `board: seeed_xiao_esp32c6`
+  Weg. Falls ESPHome 2026.6.5 zickt, Alternative: `board: seeed_xiao_esp32c6`
   (dann **ohne** `variant`). Offline nicht gegen die installierte Version
   verifizierbar.
 - **Erstflash** per USB-C, danach OTA.
 - **Diagnose-Entities** (WiFi/Uptime/API-Status) sind Konnektivitäts-Lebenszeichen,
   kein zusätzlicher Funktionsumfang — bei Wunsch entfernbar.
-- **Spätere Erweiterungen** (nicht Teil dieser Version): 1-Wire-Temperatur (J5),
-  I²C (J6), HAT-Eingänge (J1).
+- **Geplante Erweiterungen** (1-Wire, I²C, HAT-Eingänge, weitere Ideen): siehe
+  [BACKLOG.md](./BACKLOG.md).
 
 ---
 
@@ -172,4 +172,4 @@ API-Encryption-Key, OTA-Passwort, AP-Passwort.
 ---
 
 *Hardware: OmniLink-C6 Rev 1.0 · MCU: Seeed XIAO ESP32-C6 · RS485: SN65HVD75DR ·
-Ziel-ESPHome: 2026.5.x (ESP-IDF)*
+Ziel-ESPHome: 2026.6.5 (ESP-IDF)*

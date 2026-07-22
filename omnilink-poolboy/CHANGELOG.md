@@ -1,6 +1,6 @@
 # Changelog - omnilink-poolboy
 
-Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert. Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/) und diese Versionierung folgt dem [Semantic Versioning](https://semver.org/lang/de/).
+Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert. Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/) und diese Versionierung folgt dem [Semantic Versioning](https://semver.org/lang/de/). Offene Punkte, Ideen und geplante Erweiterungen stehen nicht hier, sondern in [BACKLOG.md](./BACKLOG.md).
 
 ---
 
@@ -11,6 +11,9 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 - **MSG-LED — Daten-Aktualitätsprüfung:** Solange seit mehr als `msg_led_stale_timeout_ms` (45s = 1.5x update_interval) kein gültiger pH-/Redox-Wert kam, blinkt die LED **rot** im Takt 500ms an/aus (`msg_led_monitor`, geprüft per Zeitstempel `msg_led_last_update_ms` bei jedem 500ms-Zyklus). Deckt sowohl die Startphase als auch spätere Kommunikations-Unterbrüche mit demselben Mechanismus ab.
 - **MSG-LED — Kommunikations-Indikator:** Flackert bei jedem Modbus-Poll-Zyklus 3× kurz aus (je 50ms aus / 50ms Farbe wiederhergestellt, `msg_led_comm_blip`), ausgelöst über `on_value` des zuerst abgefragten Registers „1.0 Ionisation". Die aktuelle Wasserwerte-Farbe bleibt danach erhalten.
 - **Geteilte Leitung getestet:** GPIO21 versorgt sowohl die WS2812 als auch eine diskrete grüne LED. Ein Leitungstest (reiner Digital-High-Pegel für 200ms) hat bestätigt, dass beide Komponenten koexistieren können, ohne dass die WS2812 gestört wird.
+
+### Sicherheit
+- **Webserver-Auth auf `digest` umgestellt:** ESPHome 2026.7.0 warnt beim Kompilieren, dass `web_server: auth:` aktuell noch auf `basic` defaultet (Passwort geht dabei leicht reversibel übers Netz) und der Default erst in ESPHome 2027.1.0 auf `digest` wechselt. Statt nur `type: basic` explizit zu setzen (Warnung stumm schalten), direkt auf `type: digest` umgestellt.
 
 ### Wichtig (Bugfix während der Entwicklung)
 - ESPHomes `light.turn_on` normalisiert `red`/`green`/`blue` bei jedem Aufruf automatisch so, dass der grösste Kanal auf `1.0` gesetzt wird (`LightColorValues::normalize_color()`) — kleine RGB-Werte allein dimmen also **nicht**. Die Dimmung der MSG-LED läuft daher über den separaten `brightness`-Parameter (`msg_led_apply_color`), die Farbwerte selbst speichern nur die Hue-Anteile (0.0/1.0).
@@ -37,6 +40,3 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 
 ### Sicherheit
 - **Secrets ausgelagert:** API-Key, OTA- und AP-Passwort liegen nicht mehr inline im YAML, sondern in der zentralen, per `.gitignore` ausgeschlossenen `secrets.yaml`.
-
-### Geplant / offen
-- 1-Wire-Temperatur (J5), I²C (J6), WS2812-Status-LED (`GPIO21`), HAT-Eingänge (J1).
