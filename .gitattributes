@@ -1,0 +1,6 @@
+# Binaerdateien nie durch Zeilenende-Konvertierung (autocrlf) veraendern.
+*.pdf  binary
+*.zip  binary
+*.png  binary
+*.stl  binary
+*.3mf  binary
