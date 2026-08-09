@@ -1,0 +1,168 @@
+# =============================================================================
+#  FilaHygro
+#  Hardware : FilaHygro  (TW microsystems / roger_5073, Rev 2)
+#  MCU      : ESP-12F (ESP8266)
+#  Funktion : Temperatur/Feuchtigkeit im Filament-Lagerbehälter (hygroskopische
+#             Filamente wie ABS/Nylon) -> MQTT, danach Deep-Sleep (Akkubetrieb,
+#             18650 via TP4056-Lader)
+#  Ziel     : ESPHome 2026.7.x
+#
+#  Pin-Mapping (aus Schaltplan FilaHygro Rev 2):
+#    I2C SDA (U2, Sensor)  = GPIO4
+#    I2C SCL (U2, Sensor)  = GPIO5
+#    Vbat-Teiler-Schalter (Q1, Netz "M_BAT") = GPIO15 (bestätigt korrekt)
+#    Vbat ADC (R12/R13-Spannungsteiler, Faktor 4.0218) = A0
+#    Sensor U2: SHT31-D (0x44, bestückt) oder HDC1080 (0x40) per Lötbrücke SB1
+#
+#  Bekannter Bug: Akku-SoC zeigt dauerhaft ~4V/100%, Ursache noch offen
+#  (GPIO15-Verdrahtung ist bestätigt korrekt), siehe BACKLOG.md.
+# =============================================================================
+
+substitutions:
+  devicename: "filabox1"
+  fw_version: "0.1.0"
+
+esphome:
+  name: $devicename
+  project:
+    name: "twm.filahygro"
+    version: "${fw_version}"
+  on_boot:
+    # 1. Aktiviere den Spannungsteiler sofort beim Booten
+    - priority: 800
+      then:
+        - output.turn_on: vbat_switch
+    # 2. Skript für MQTT und Sleep starten
+    - priority: -100
+      then:
+        - script.execute: publish_and_sleep
+
+esp8266:
+  board: esp12e
+
+logger:
+  level: DEBUG
+
+# ----------------------------------------------------------------------------
+#  Konnektivität
+# ----------------------------------------------------------------------------
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  min_auth_mode: WPA
+
+mqtt:
+  broker: !secret filahygro_mqtt_broker
+  port: 1883
+  username: !secret filahygro_mqtt_user
+  password: !secret filahygro_mqtt_password
+  client_id: "FilaBox"
+  discovery: false
+
+# ----------------------------------------------------------------------------
+#  I2C (Sensor U2: SHT31-D oder HDC1080, siehe Header)
+# ----------------------------------------------------------------------------
+i2c:
+  sda: 4
+  scl: 5
+
+# ----------------------------------------------------------------------------
+#  Vbat-Spannungsteiler-Schalter (Q1) -- nur während der Messung aktiv,
+#  spart Strom im Deep-Sleep. Siehe BACKLOG.md zum bekannten SoC-Bug
+#  (Ursache noch offen, GPIO-Verdrahtung ist bestätigt korrekt).
+# ----------------------------------------------------------------------------
+output:
+  - platform: gpio
+    pin: 15
+    id: vbat_switch
+
+# ----------------------------------------------------------------------------
+#  Schlafenszeit
+# ----------------------------------------------------------------------------
+deep_sleep:
+  id: deep_sleep_mode
+  # HINWEIS: Testwert. Für Produktivbetrieb noch festlegen (siehe BACKLOG.md).
+  sleep_duration: 300s
+
+# ----------------------------------------------------------------------------
+#  Messwerte -- Temperatur/Feuchtigkeit (Filament-Lagerbehälter) + Akkuzustand
+# ----------------------------------------------------------------------------
+sensor:
+  - platform: sht3xd
+    address: 0x44
+    temperature:
+      id: temp
+      name: "FilaBox Temperature"
+    humidity:
+      id: hum
+      name: "FilaBox Humidity"
+    update_interval: 1s 
+
+  - platform: adc
+    pin: A0
+    id: vbat_raw
+    name: "FilaBox Battery Voltage"
+    update_interval: 1s
+    filters:
+      - multiply: 4.0218
+
+  - platform: template
+    id: soc
+    name: "FilaBox Battery SoC"
+    unit_of_measurement: "%"
+    update_interval: 1s
+    lambda: |-
+      float v = id(vbat_raw).state;
+      if (isnan(v)) return v;
+      if (v >= 4.20) return 100.0;
+      if (v >= 4.14) return 95.0;
+      if (v >= 4.08) return 90.0;
+      if (v >= 4.02) return 85.0;
+      if (v >= 3.96) return 80.0;
+      if (v >= 3.90) return 75.0;
+      if (v >= 3.84) return 70.0;
+      if (v >= 3.78) return 65.0;
+      if (v >= 3.72) return 60.0;
+      if (v >= 3.66) return 55.0;
+      if (v >= 3.60) return 50.0;
+      if (v >= 3.54) return 45.0;
+      if (v >= 3.48) return 40.0;
+      if (v >= 3.42) return 35.0;
+      if (v >= 3.36) return 30.0;
+      if (v >= 3.30) return 25.0;
+      if (v >= 3.24) return 20.0;
+      if (v >= 3.18) return 15.0;
+      if (v >= 3.12) return 10.0;
+      if (v >= 3.06) return 5.0;
+      return 0.0;
+
+# Ablaufsteuerung für das Senden und Schlafenlegen
+script:
+  - id: publish_and_sleep
+    then:
+      # 1. Warte dynamisch, bis die MQTT-Verbindung steht (max 15s)
+      - wait_until:
+          condition:
+            mqtt.connected:
+          timeout: 15s
+          
+      # 2. Kurze Pause, damit die Sensoren sicher gemessen haben
+      - delay: 1s
+      
+      # 3. Daten senden
+      - mqtt.publish_json:
+          topic: "FilaBox/data"
+          payload: |-
+            root["t"] = round(id(temp).state * 10.0) / 10.0;
+            root["h"] = round(id(hum).state * 10.0) / 10.0;
+            root["v"] = round(id(vbat_raw).state * 100.0) / 100.0;
+            root["soc"] = (int)id(soc).state;
+      
+      # 4. Kurze Pause, damit das JSON-Paket über WLAN rausgeht
+      - delay: 500ms
+      
+      # 5. Spannungsteiler deaktivieren, um Strom zu sparen
+      - output.turn_off: vbat_switch
+      
+      # 6. Direkt schlafen legen
+      - deep_sleep.enter: deep_sleep_mode
