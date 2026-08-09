@@ -1,0 +1,119 @@
+esphome:
+  name: poolcontrol-pool-sensor
+  friendly_name: poolcontrol_pool_sensor
+
+substitutions:
+  # Heap-Werte für ESP32-S3 überschreiben (viel mehr RAM verfügbar)
+  diag_min_heap_ok: "15000"
+  diag_min_heap_critical: "8000"
+
+packages:
+  diagnostics: !include common/diagnostics.yaml
+  
+esp8266:
+  board: esp01_1m
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "GIDn+qtqqz7oKicH8NmArJ1DPR1FYXv0Lr3EM5RW55M="
+
+ota:
+  - platform: esphome
+    #password: "59781f29b25e859760f43ea0b4a5655b"
+    password: "0bccc2d1faefa962c2b522bff1f515e7"
+  - platform: web_server
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Poolcontrol-Pool-Sensor"
+    password: "3hMm0HPKQcWP"
+
+captive_portal:
+
+time:
+  - platform: homeassistant
+    timezone: UTC-01:00
+
+web_server: 
+  port: 80 
+  local: true 
+  auth:
+    username: !secret web_server_username
+    password: !secret web_server_password
+
+one_wire:
+  - platform: gpio
+    pin: GPIO02
+
+output:
+  - id: wlan_status
+    platform: gpio
+    pin: GPIO13
+    inverted: false
+
+light:
+  - platform: status_led
+    name: "State"
+    output: wlan_status
+
+binary_sensor:
+  - platform: status
+    name: Pool Sensor API Status
+  
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    id: wifi_signal_db
+    update_interval: 60s
+    entity_category: "diagnostic"
+
+  - platform: dallas_temp
+    address: 0xf4355fd4456b3228
+    name: "poolcontrol_pool_sensor"
+    id: poolcontrol_solar_sensor
+    update_interval: 1s
+    resolution: 10
+    filters:
+      - sliding_window_moving_average:
+          window_size: 10
+          send_every: 10
+          
+  - platform: uptime
+    type: timestamp
+    name: Uptime Sensor
+
+switch:
+  - platform: restart
+    name: "Pool Sensor Restart"
+    entity_category: "diagnostic"
+    
+interval:
+  - interval: 1s
+    then:
+      if:
+        condition:
+          wifi.connected:
+        then:
+          if:
+            condition:
+              api.connected:
+            then:
+                - output.turn_on: wlan_status
+                - delay: 250ms
+                - output.turn_off: wlan_status
+                - delay: 500ms
+            else:
+                - output.turn_on: wlan_status
+                - delay: 500ms
+                - output.turn_off: wlan_status
+                - delay: 500ms
+        else:
+          - output.turn_off: wlan_status

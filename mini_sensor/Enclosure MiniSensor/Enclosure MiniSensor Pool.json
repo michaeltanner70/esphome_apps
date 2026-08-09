@@ -1,0 +1,70 @@
+{
+  "length": 82,
+  "width": 56,
+  "height": 25,
+  "floor": 2,
+  "roof": 2,
+  "wall": 1,
+  "waterProof": true,
+  "sealThickness": 2,
+  "insertThickness": 1.5,
+  "insertHeight": 4,
+  "insertClearance": 0.2,
+  "showLid": true,
+  "showBase": true,
+  "cornerRadius": 3,
+  "holes": [
+    {
+      "shape": "circle",
+      "surface": "right",
+      "diameter": 13,
+      "width": 10,
+      "length": 10,
+      "x": -1,
+      "y": -11
+    },
+    {
+      "shape": "circle",
+      "surface": "right",
+      "diameter": 13,
+      "width": 10,
+      "length": 10,
+      "y": 11,
+      "x": -1
+    }
+  ],
+  "pcbMounts": [
+    {
+      "x": 12,
+      "y": 28.7,
+      "height": 5,
+      "outerDiameter": 5,
+      "screwDiameter": 2
+    },
+    {
+      "x": -19,
+      "y": 28.7,
+      "height": 5,
+      "outerDiameter": 5,
+      "screwDiameter": 2
+    },
+    {
+      "x": 12,
+      "y": -28.7,
+      "height": 5,
+      "outerDiameter": 5,
+      "screwDiameter": 2
+    },
+    {
+      "x": -19,
+      "y": -28.7,
+      "height": 5,
+      "outerDiameter": 5,
+      "screwDiameter": 2
+    }
+  ],
+  "wallMounts": true,
+  "wallMountScrewDiameter": 4,
+  "screws": true,
+  "screwDiameter": 2.5
+}

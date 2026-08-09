@@ -1,0 +1,146 @@
+# =============================================================================
+#  MiniSensor
+#  Hardware : MiniSensor  (TW microsystems, Rev 1.0)
+#  MCU      : ESP-12F (ESP8266)
+#  Funktion : Beispielanwendung -- Temperaturmessung (1-Wire/DS18B20) -> Home Assistant
+#  Ziel     : ESPHome 2026.7.x
+#
+#  Pin-Mapping (aus Schaltplan MiniSensor):
+#    1-Wire (J2/J5)  = GPIO2   (Pull-up R9 4k7)
+#    I2C SDA (J3)    = GPIO4   (Pull-up R10 4k7)
+#    I2C SCL (J3)    = GPIO5   (Pull-up R11 4k7)
+#    STATUS-LED (LED1, rot) = GPIO13  (Vorwiderstand R7 2K2)
+#    BOOT-Taste      = GPIO0   (Pull-up R8 10K, KEY2)
+# =============================================================================
+
+substitutions:
+  fw_version: "0.1.0"
+
+esphome:
+  name: mini-sensor
+  friendly_name: Mini-Sensor
+  name_add_mac_suffix: false
+  project:
+    name: "twm.mini-sensor"
+    version: "${fw_version}"
+  on_boot:
+    priority: 800
+    then:
+      - script.execute: status_led_run
+
+esp8266:
+  board: esp12e
+
+# Gemeinsames Diagnose-Package (WLAN/Heap/Uptime/Version/Restart-Buttons)
+# Pfad relativ zum Aufruf-Verzeichnis -> ESPHome vom Repo-Root aus starten.
+# ESP8266-Heap-Grenzwerte sind der Fallback des Packages, keine Überschreibung nötig.
+packages:
+  diagnostics: !include common/diagnostics.yaml
+
+# ----------------------------------------------------------------------------
+#  Logging
+# ----------------------------------------------------------------------------
+logger:
+
+# ----------------------------------------------------------------------------
+#  Konnektivität
+# ----------------------------------------------------------------------------
+api:
+  encryption:
+    key: !secret mini_sensor_api_key
+
+ota:
+  - platform: esphome
+    password: !secret mini_sensor_ota_key
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Fallback-Hotspot, falls die WLAN-Verbindung fehlschlägt
+  ap:
+    ssid: !secret mini_sensor_fallback_ap_ssid
+    password: !secret mini_sensor_fallback_ap_password
+
+captive_portal:
+
+web_server:
+  port: 80
+  auth:
+    type: digest   # sicherer als das (aktuell noch default) 'basic' -- Passwort geht nicht mehr im Klartext übers Netz
+    username: !secret web_server_username
+    password: !secret web_server_password
+
+# ----------------------------------------------------------------------------
+#  STATUS-LED (LED1, rot, GPIO13): zeigt den ESPHome-/API-Verbindungsstatus
+#  per Blinkfrequenz -- langsam (100ms an / 1200ms aus), solange die API-/
+#  WLAN-Verbindung noch nicht steht, schnell (100ms an / 600ms aus), sobald
+#  die API verbunden ist. Umgesetzt über einen Endlos-Script-Loop, der bei
+#  jedem Zyklus die api.connected-Bedingung prüft.
+# ----------------------------------------------------------------------------
+output:
+  - platform: gpio
+    pin: GPIO13
+    id: status_led_output
+
+script:
+  - id: status_led_run
+    then:
+      - while:
+          condition:
+            lambda: "return true;"
+          then:
+            - if:
+                condition:
+                  api.connected:
+                then:
+                  - output.turn_on: status_led_output
+                  - delay: 100ms
+                  - output.turn_off: status_led_output
+                  - delay: 600ms
+                else:
+                  - output.turn_on: status_led_output
+                  - delay: 100ms
+                  - output.turn_off: status_led_output
+                  - delay: 1200ms
+
+# ----------------------------------------------------------------------------
+#  1-Wire (J2/J5) -- Beispielanwendung: Temperaturmessung
+# ----------------------------------------------------------------------------
+one_wire:
+  - platform: gpio
+    pin: GPIO2
+
+# ----------------------------------------------------------------------------
+#  I2C (J3) -- auf der Platine vorhanden, aktuell ohne angeschlossenen Sensor.
+#  Bus ist aktiv (inkl. scan-Log beim Boot), damit künftige I2C-Erweiterungen
+#  ohne YAML-Grundgerüst-Änderung angesteckt werden können.
+# ----------------------------------------------------------------------------
+i2c:
+  sda: GPIO4
+  scl: GPIO5
+  scan: true
+
+# ----------------------------------------------------------------------------
+#  Messwerte -- Kategorie 1.x = lokales Projekt
+# ----------------------------------------------------------------------------
+sensor:
+  # Kein address: -- am Bus hängt nur ein DS18B20, ESPHome nimmt automatisch
+  # den einzigen gefundenen Sensor. Bei mehreren 1-Wire-Sensoren am Bus muss
+  # hier die konkrete Adresse (per Boot-Log ermittelt) ergänzt werden.
+  - platform: dallas_temp
+    name: "1.0 Temperatur"
+    id: temperature
+    update_interval: 30s
+    resolution: 12
+    filters:
+      - sliding_window_moving_average:
+          window_size: 10
+          send_every: 10
+
+# ----------------------------------------------------------------------------
+#  Status
+# ----------------------------------------------------------------------------
+binary_sensor:
+  - platform: status
+    name: "1.9 API Status"
+    entity_category: diagnostic
