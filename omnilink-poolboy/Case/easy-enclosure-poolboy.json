@@ -1,0 +1,70 @@
+{
+  "length": 70,
+  "width": 80,
+  "height": 30,
+  "floor": 2,
+  "roof": 2,
+  "wall": 1,
+  "waterProof": true,
+  "sealThickness": 2,
+  "insertThickness": 1.5,
+  "insertHeight": 4,
+  "insertClearance": 0.2,
+  "showLid": true,
+  "showBase": true,
+  "cornerRadius": 3,
+  "holes": [
+    {
+      "shape": "circle",
+      "surface": "left",
+      "diameter": 13,
+      "width": 10,
+      "length": 10,
+      "y": -15,
+      "x": 4
+    }
+  ],
+  "pcbMounts": [
+    {
+      "surface": "bottom",
+      "x": -21.93,
+      "y": -14.6,
+      "height": 5,
+      "outerDiameter": 6,
+      "screwDiameter": 2
+    },
+    {
+      "surface": "bottom",
+      "x": 27.93,
+      "y": -14.6,
+      "height": 5,
+      "outerDiameter": 6,
+      "screwDiameter": 2
+    },
+    {
+      "surface": "bottom",
+      "x": 27.93,
+      "y": 22.6,
+      "height": 5,
+      "outerDiameter": 6,
+      "screwDiameter": 2
+    },
+    {
+      "surface": "bottom",
+      "x": -21.93,
+      "y": 22.6,
+      "height": 5,
+      "outerDiameter": 6,
+      "screwDiameter": 2
+    }
+  ],
+  "internalWalls": [],
+  "wallMounts": true,
+  "wallMountCount": 2,
+  "wallMountScrewDiameter": 5,
+  "lidScrews": true,
+  "lidScrewDiameter": 2.98,
+  "baseLidScrewDiameter": 2.88,
+  "screws": true,
+  "screwDiameter": 2.5
+}
