@@ -43,45 +43,45 @@ PROJECTS = {
     # -----------------------------------------------------------------
     "omnilink": {
         "out": "OmniLink-OnePager.pdf",
-        "title": "OmniLink-PoolBoy",
-        "subtitle": "Pool-Monitoring: eigene ESP32-C6-Platine + ESPHome-Firmware",
-        "tagline": "Open-Source-Bastelprojekt · ESPHome · Modbus RTU · Home Assistant · MIT-Lizenz",
+        "title": "OmniLink-C6",
+        "subtitle": "ESP32-C6-Platine für ESPHome — RS485, I²C, 1-Wire, Status-LED",
+        "tagline": "Open-Source-Bastelprojekt · ESPHome · RS485 · I²C · 1-Wire · Home Assistant · MIT-Lizenz",
         "intro": (
-            "Der OmniLink-PoolBoy liest ein PoolBoy-Elektrolysegerät per Modbus RTU (RS485) "
-            "aus und stellt Ionisation, Hydrolyse, pH und Redox in Home Assistant bereit. "
-            "Herzstück ist die eigenentwickelte Platine OmniLink-C6 rund um ein Seeed XIAO "
-            "ESP32-C6, auf der ESPHome läuft. Zwei Status-LEDs machen Verbindungszustand und "
-            "Wasserwerte direkt am Gerät sichtbar."
+            "Die OmniLink-C6 ist eine universelle Trägerplatine (TW microsystems) rund um ein "
+            "Seeed XIAO ESP32-C6 für ESPHome. Sie bietet eine geschützte RS485-/Modbus-Schnittstelle "
+            "sowie Anschlüsse für I²C, 1-Wire und HAT-Erweiterungen, dazu Status-LEDs — was daran "
+            "hängt, bestimmt die jeweilige Anwendung. Die Beispiel-Firmware „PoolBoy“ liest ein "
+            "Pool-Elektrolysegerät per Modbus aus und übergibt die Wasserwerte an Home Assistant."
         ),
-        "arch_title": "System — Platine & Firmware",
+        "arch_title": "System — Platine & Beispiel-Firmware",
         "arch_cards": [
             ("OmniLink-C6 · Trägerplatine (Rev 2.0)",
-             "Eigenentwicklung (TW microsystems) um das Seeed XIAO ESP32-C6. RS485-Transceiver "
-             "SN65HVD75, 12 V→5 V-Schaltregler sowie Anschlüsse für I²C, 1-Wire, HAT-Erweiterungen "
-             "und eine WS2812-Status-LED."),
-            ("omnilink-poolboy · ESPHome-Firmware (v0.3.0)",
-             "Zyklische Modbus-Abfrage des PoolBoy und Übergabe an die verschlüsselte "
-             "Home-Assistant-API. OTA-Updates, lokaler Webserver mit Digest-Auth und "
-             "WLAN-AP-Fallback inklusive."),
+             "Seeed XIAO ESP32-C6 mit RS485-Transceiver SN65HVD75 (120 Ω-Terminierung, Fail-Safe-Bias, "
+             "TVS-Schutz), Anschlüssen für I²C, 1-Wire und HAT-Erweiterungen, WS2812-Status-LED sowie "
+             "12 V→5 V-Versorgung und LiPo-Anschluss."),
+            ("Beispielanwendung „PoolBoy“ · ESPHome (v0.3.0)",
+             "Liest ein PoolBoy-Elektrolysegerät per Modbus RTU aus und übergibt Ionisation, Hydrolyse, "
+             "pH und Redox an die verschlüsselte Home-Assistant-API — zeigt die Platine in einer "
+             "konkreten Messaufgabe."),
         ],
-        "col1_title": "Messwerte & Anbindung",
+        "col1_title": "Schnittstellen & Anbindung",
         "col1_bullets": [
-            ("Wasserwerte", "Ionisation (mA), Hydrolyse (%), pH und Redox (mV) im 30-Sekunden-Takt."),
-            ("Statusbits", "pH-Minus-Pumpe sowie Ionisierungs- und Redox-Status als Binärsensoren."),
-            ("Home Assistant", "Native, verschlüsselte API; alle Werte als thematisch sortierte Entitäten."),
-            ("Diagnose", "WLAN, freier Speicher, Uptime und Neustart-Grund über gemeinsames Package."),
+            ("RS485 / Modbus", "SN65HVD75-Transceiver, bis 19200 8N1, 120 Ω-Terminierung und TVS-Schutz."),
+            ("I²C & 1-Wire", "Anschlüsse mit 4k7-Pull-ups für Sensoren aller Art (z. B. DS18B20)."),
+            ("HAT-Erweiterung", "Drei GPIOs (J1) mit konfigurierbarem Pull-up/-down für Aufsteckmodule."),
+            ("Home Assistant", "Native, verschlüsselte ESPHome-API; OTA, Webserver und WLAN-AP-Fallback."),
         ],
-        "col2_title": "Technik & Bedienung",
+        "col2_title": "Plattform & Status",
         "col2_bullets": [
-            ("RS485 / Modbus", "SN65HVD75-Transceiver, 19200 8N1, 120 Ω-Terminierung und TVS-Schutz."),
-            ("Status-LEDs", "Blaue Verbindungs-Ampel; WS2812 zeigt die Wasserwerte farbig (grün/gelb/rot)."),
-            ("Konnektivität", "OTA-Updates, lokaler Webserver (Digest-Auth) und WLAN-AP-Fallback."),
-            ("Antennenwahl", "Beim Boot fest auf die interne Keramikantenne für reproduzierbaren Funk."),
+            ("Universell", "ESPHome-Firmware frei bestückbar — RS485, I²C oder 1-Wire je nach Einsatz."),
+            ("Status-LEDs", "Blaue Verbindungs-Ampel und WS2812 für frei definierbare Farbanzeige."),
+            ("Versorgung", "12 V-Eingang mit Verpolschutz, LM2675-Buck auf 5 V, LiPo-Anschluss."),
+            ("Beispiel PoolBoy", "Ionisation, Hydrolyse, pH und Redox eines Elektrolysegeräts via Modbus."),
         ],
         "stats": [
-            ("4", "Wasser-\nMesswerte"),
-            ("30 s", "Abfrage-\nintervall"),
+            ("3", "Bus-Systeme\n(RS485/I²C/1-Wire)"),
             ("ESP32-C6", "Controller\n(RISC-V)"),
+            ("Rev 2.0", "Platinen-\nStand"),
             ("MIT", "Open-Source\nLizenz"),
         ],
     },
