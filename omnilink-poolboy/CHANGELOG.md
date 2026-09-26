@@ -8,6 +8,7 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 
 ### Geändert
 - **MSG-LED:** `rgb_order: GRB` → `channel_colors: GRB` (von ESPHome angebotene Migration: seit 2026.8 in `channel_colors` zusammengefasst, alte Schreibweise entfällt in 2027.3.0). Funktional unverändert.
+- **Modbus:** `command_throttle: 500ms` entfernt — seit ESPHome 2026.9 wirkungslos (entfällt in 2027.2.0). Der Abstand zwischen den Anfragen ergibt sich aus `turnaround_time` (100 ms) im `modbus`-Block; das galt faktisch schon seit 0.4.0.
 
 ---
 

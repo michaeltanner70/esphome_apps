@@ -21,7 +21,6 @@ Details zum Pin-Mapping: [Design-Dokument](./Design_omnilink-poolboy.md).
 - **Kommunikations-Blitz an den Zyklus hängen:** Der Blitz hängt am `on_value` von „1.0 Ionisation" („erstes abgefragtes Register"). Seit 0.4.1 gibt es mit dem internen Statusregister `0x0108` einen Punkt, der sicher einmal pro vollständigem Zyklus feuert — dorthin verschieben, spätestens bei der Bereichszusammenfassung (unten).
 - **„1.4 pH Status" ganzzahlig anzeigen:** `accuracy_decimals: 0` ergänzen, heute zeigt HA „0.0" statt „0".
 - **`continuous: true`** für die Modbus-Reads bewusst **nicht** einsetzen, solange die Bereichszusammenfassung offen ist.
-- **Veraltete Option (Warnung unter 2026.9):** `command_throttle` ist wirkungslos (entfällt in 2027.2.0; Abstand nur noch über `turnaround_time` des `modbus`-Blocks).
 
 ---
 

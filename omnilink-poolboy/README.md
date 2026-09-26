@@ -62,8 +62,6 @@ Der OmniLink-PoolBoy liest die Mess- und Statusregister des PoolBoy-Elektrolyseg
 | update_interval | 30 s |
 | send_wait / turnaround | 500 ms / 100 ms |
 
-> `command_throttle` (500 ms) steht noch in der YAML, ist aber seit ESPHome 2026.9 wirkungslos — der Abstand zwischen den Anfragen ergibt sich nur noch aus `turnaround_time`.
-
 ### Registersatz
 
 | Entität | Register | Typ / Dekodierung | Einheit / Class |

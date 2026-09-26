@@ -34,6 +34,8 @@
 #  Änderungen 0.4.2:
 #    - MSG-LED: rgb_order -> channel_colors (ESPHome-Migration, alte
 #      Schreibweise entfällt in 2027.3.0)
+#    - command_throttle entfernt (seit 2026.9 wirkungslos, entfällt in
+#      2027.2.0; Abstand zwischen Anfragen = turnaround_time)
 # =============================================================================
 
 substitutions:
@@ -338,7 +340,6 @@ modbus_controller:
     modbus_id: poolboy_modbus
     address: 0x01
     update_interval: 30s
-    command_throttle: 500ms
 
 # ----------------------------------------------------------------------------
 #  Messwerte (Input-Register, FC04)  -- Kategorie 1.x = lokales Projekt
