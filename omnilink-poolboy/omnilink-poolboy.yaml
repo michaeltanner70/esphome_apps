@@ -30,10 +30,14 @@
 #      Gesperrte Messung (Umwälzpumpe steht) = konstant weiss statt rot blinken.
 #    - web_server auth wieder 'type: digest' (in 0.4.0 verloren gegangen)
 #    - OTA per Noise verschlüsselt (Schlüssel = API-Key) statt OTA-Passwort
+#
+#  Änderungen 0.4.2:
+#    - MSG-LED: rgb_order -> channel_colors (ESPHome-Migration, alte
+#      Schreibweise entfällt in 2027.3.0)
 # =============================================================================
 
 substitutions:
-  fw_version: "0.4.1"
+  fw_version: "0.4.2"
   # ESP32-C6: Diagnose-Grenzwerte des common-Packages überschreiben (viel RAM)
   diag_min_heap_ok: "80000"
   diag_min_heap_critical: "40000"
@@ -153,7 +157,7 @@ light:
     id: msg_led
     pin: GPIO21
     num_leds: 1
-    rgb_order: GRB
+    channel_colors: GRB
     chipset: WS2812
     internal: true   # reine Status-LED, keine HA-Entität
 

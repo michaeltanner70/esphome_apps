@@ -4,6 +4,13 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 
 ---
 
+## [0.4.2] - 2026-09-26
+
+### Geändert
+- **MSG-LED:** `rgb_order: GRB` → `channel_colors: GRB` (von ESPHome angebotene Migration: seit 2026.8 in `channel_colors` zusammengefasst, alte Schreibweise entfällt in 2027.3.0). Funktional unverändert.
+
+---
+
 ## [0.4.1] - 2026-09-26
 
 Behebt die beiden bekannten Mängel von 0.4.0. Konfiguration mit ESPHome 2026.9.0 validiert, Compile/Flash stehen noch aus.
