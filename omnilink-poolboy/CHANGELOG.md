@@ -15,6 +15,7 @@ Behebt die beiden bekannten Mängel von 0.4.0. Konfiguration mit ESPHome 2026.9.
 
 ### Sicherheit
 - **OTA verschlüsselt (Noise):** `ota: encryption:` statt `password: !secret poolboy_ota_key`. Ein leeres `encryption:` übernimmt den API-Schlüssel `poolboy_api_key`; ESPHome 2026.9 hatte das OTA-Passwort als überflüssig (Flash/RAM) angemahnt. `poolboy_ota_key` wird nicht mehr gebraucht.
+- **Webserver-OTA bleibt offen (Entscheid 26.09.2026):** Die Noise-Verschlüsselung gilt nur für ESPHome-OTA; der `/update`-Endpunkt des Webservers bleibt unverschlüsselt, geschützt durch das Digest-Login. Flashen über den Webzugang soll möglich bleiben, darum kein `web_server: ota: false`.
 
 ### Nach dem Flash prüfen
 - „1.2 pH" und „1.3 Redox" behalten ihre Entity-IDs (`sensor.omnilink_poolboy_1_2_ph`, `…_1_3_redox`) — keine Duplikate mit Suffix `_2`.
