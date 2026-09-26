@@ -20,10 +20,19 @@
 #      Messmodul-Bit 0 ist (fängt den Ersatzwert 7.00 der Anlage ab)
 #    - state_class: measurement für Ionisation, Hydrolyse, pH und Redox
 #      (ohne diese Angabe führt HA keine Langzeitstatistik)
+#
+#  Änderungen 0.4.1:
+#    - pH/Redox-Sperre wertet das Statusbit desselben Poll-Zyklus aus statt
+#      das des vorherigen (pH/Redox werden vor 0x0107/0x0108 gelesen). Dazu
+#      interne Rohwert-Sensoren + Template-Sensoren "1.2 pH"/"1.3 Redox",
+#      veröffentlicht beim Eintreffen des Statusregisters.
+#    - MSG-LED: Datenaktualität hängt am Modbus-Zyklus, nicht mehr an pH/Redox.
+#      Gesperrte Messung (Umwälzpumpe steht) = konstant weiss statt rot blinken.
+#    - web_server auth wieder 'type: digest' (in 0.4.0 verloren gegangen)
 # =============================================================================
 
 substitutions:
-  fw_version: "0.4.0"
+  fw_version: "0.4.1"
   # ESP32-C6: Diagnose-Grenzwerte des common-Packages überschreiben (viel RAM)
   diag_min_heap_ok: "80000"
   diag_min_heap_critical: "40000"
@@ -33,14 +42,11 @@ substitutions:
   # den separaten brightness-Parameter, nicht über kleine RGB-Werte.
   msg_led_brightness: "0.5"
   # MSG-LED: gilt als "keine aktuellen Daten", wenn seit mehr als dieser Zeit
-  # (ms) kein pH-/Redox-Wert mehr per Modbus kam -- deckt sowohl die
-  # Wartezeit auf den allerersten Wert als auch spätere Kommunikations-
-  # Unterbrüche ab. 45s = 1.5x update_interval (30s), toleriert einen
-  # einzelnen verpassten Poll-Zyklus.
-  # ACHTUNG ab 0.4.0: pH/Redox werden bei ungültiger Messung nicht mehr
-  # veröffentlicht. Die LED blinkt dann rot, obwohl die Kommunikation läuft
-  # (z.B. nachts bei stehender Umwälzpumpe). Bewusst so gelassen, bis die
-  # Modulbits im Betrieb bestätigt sind.
+  # (ms) kein vollständiger Modbus-Zyklus mehr kam (gemessen am Statusregister
+  # 0x0108, dem letzten Register vor 0x010C) -- deckt sowohl die Wartezeit
+  # auf den allerersten Zyklus als auch spätere Kommunikations-Unterbrüche ab.
+  # 45s = 1.5x update_interval (30s), toleriert einen verpassten Poll-Zyklus.
+  # Gesperrte pH-/Redox-Werte (Messmodul inaktiv) zählen NICHT als Ausfall.
   msg_led_stale_timeout_ms: "45000"
 
 esphome:
@@ -100,6 +106,7 @@ captive_portal:
 web_server:
   port: 80
   auth:
+    type: digest   # sicherer als das (aktuell noch default) 'basic' -- Passwort geht nicht mehr im Klartext übers Netz
     username: !secret web_server_username
     password: !secret web_server_password
 
@@ -129,10 +136,12 @@ output:
 #      sich die blaue LED optisch klar davon abhebt und nicht untergeht.)
 #    MSG (D3/GPIO21, WS2812B): zeigt die Wasserwerte als gedimmte Farbe
 #      (grün/gelb/rot nach pH/Redox, siehe Regeln bei msg_led_update_water_color).
-#      Solange seit mehr als msg_led_stale_timeout_ms kein neuer pH-/Redox-Wert
-#      kam (weder der allererste noch ein aktueller), blinkt sie stattdessen
-#      ROT im Takt 500ms an / 500ms aus (msg_led_monitor) -- das deckt sowohl
-#      die Startphase als auch spätere Kommunikations-Unterbrüche ab. Bei
+#      Ist die pH- oder Redox-Messung gesperrt (Messmodul inaktiv, z.B. bei
+#      stehender Umwälzpumpe), leuchtet sie konstant WEISS.
+#      Solange seit mehr als msg_led_stale_timeout_ms kein vollständiger
+#      Modbus-Zyklus kam, blinkt sie stattdessen ROT im Takt 500ms an /
+#      500ms aus (msg_led_monitor) -- das deckt sowohl die Startphase als
+#      auch spätere Kommunikations-Unterbrüche ab. Bei
 #      jeder Modbus-Kommunikation flackert sie kurz 3x (siehe msg_led_comm_blip),
 #      danach bleibt die aktuelle Wasserwerte-Farbe stehen. Geteilte Leitung
 #      mit der diskreten grünen LED getestet: WS2812 wird durch einen langen
@@ -161,11 +170,26 @@ globals:
   - id: msg_led_b
     type: float
     initial_value: "0.0"
-  # Zeitstempel (millis()) der letzten gültigen pH-/Redox-Aktualisierung.
+  # Zeitstempel (millis()) des letzten vollständigen Modbus-Zyklus.
   # 0 = noch nie -> gilt sofort als "veraltet", siehe msg_led_monitor.
   - id: msg_led_last_update_ms
     type: uint32_t
     initial_value: "0"
+  # Gültigkeit pH/Redox (Messmodul-Bit 14), gesetzt bei jedem Lesen von
+  # 0x0107/0x0108. *_seen_active: Bit wurde seit dem Boot mindestens einmal
+  # als gesetzt gesehen (Fail-safe, siehe Sensor "1.2 pH").
+  - id: ph_valid
+    type: bool
+    initial_value: "true"
+  - id: ph_seen_active
+    type: bool
+    initial_value: "false"
+  - id: rx_valid
+    type: bool
+    initial_value: "true"
+  - id: rx_seen_active
+    type: bool
+    initial_value: "false"
 
 script:
   - id: status_led_run
@@ -261,7 +285,9 @@ script:
                   - script.execute: msg_led_apply_color
                   - delay: 500ms
 
-  # Wertet pH und Redox aus und setzt die Wasserwerte-Farbe. Regeln:
+  # Wird einmal pro Modbus-Zyklus aufgerufen (nach 0x0108), merkt sich den
+  # Zeitstempel und setzt die Wasserwerte-Farbe. Regeln:
+  #   weiss: pH- oder Redox-Messung gesperrt (Messmodul inaktiv)
   #   grün : 7.1 < pH < 7.3  UND  Redox > 650mV
   #   rot  : pH < 6.9  ODER  pH > 7.4  ODER  Redox < 600mV
   #   gelb : alles dazwischen (Übergangs-/Warnbereich)
@@ -269,6 +295,10 @@ script:
     then:
       - globals.set: { id: msg_led_last_update_ms, value: !lambda "return millis();" }
       - lambda: |-
+          if (!id(ph_valid) || !id(rx_valid)) {
+            id(msg_led_set_color)->execute(1.0f, 1.0f, 1.0f);   // weiss
+            return;
+          }
           float ph = id(poolboy_ph).state;
           float redox = id(poolboy_redox).state;
           if (redox < 600.0f || ph < 6.9f || ph > 7.4f) {
@@ -344,56 +374,60 @@ sensor:
     filters:
       - multiply: 0.1
 
-  # pH: laut NeoPool-Doku ist MBF_MEASURE_PH nur gültig, wenn das pH-Messmodul
-  # aktiv ist (MBF_PH_STATUS Bit 14). Ist das Bit 0, liefert die Anlage den
-  # Ersatzwert 700 (= pH 7.00). Der Filter unten verwirft den Wert dann,
-  # statt ihn als Messwert zu veröffentlichen.
-  # Fail-safe: verworfen wird erst, nachdem das Bit mindestens einmal als
-  # gesetzt gesehen wurde -- sollte die Anlage es nie setzen, bleibt die
-  # Anzeige also unverändert erhalten.
+  # pH / Redox: laut NeoPool-Doku sind MBF_MEASURE_PH (0x0102) und
+  # MBF_MEASURE_RX (0x0103) nur gültig, wenn das jeweilige Messmodul aktiv
+  # ist (MBF_PH_STATUS 0x0107 bzw. MBF_RX_STATUS 0x0108, je Bit 14). Ist das
+  # Bit 0, liefert die Anlage einen Ersatzwert (pH 7.00).
+  #
+  # Die Rohwerte werden intern gelesen; veröffentlicht werden sie erst beim
+  # Eintreffen des Statusregisters DESSELBEN Zyklus (siehe "1.4 pH Status roh"
+  # und "1.8 Redox Status roh"). Grund: die Register werden in Adress-
+  # reihenfolge gelesen, pH/Redox also vor ihrem Statusbit -- ein Filter am
+  # Messwert sähe immer das Bit des vorherigen Zyklus (Fehler in 0.4.0).
+  #
+  # Fail-safe: gesperrt wird erst, nachdem das Bit seit dem Boot mindestens
+  # einmal gesetzt war -- setzt die Anlage es nie, bleibt alles wie bisher.
+  #
+  # "1.2 pH" / "1.3 Redox" sind Template-Sensoren mit unverändertem Namen,
+  # damit Entity-IDs und Historie in Home Assistant erhalten bleiben.
   - platform: modbus_controller
     modbus_controller_id: poolboy_device
-    id: poolboy_ph
-    name: "1.2 pH"
+    id: poolboy_ph_raw
+    name: "1.2 pH roh"
+    internal: true
     register_type: read
     address: 0x0102
     reuse_previous_range: false
     value_type: U_WORD
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+
+  - platform: template
+    id: poolboy_ph
+    name: "1.2 pH"
     device_class: ph
     accuracy_decimals: 2
     state_class: measurement
-    filters:
-      - multiply: 0.01
-      - lambda: |-
-          static bool seen_active = false;
-          if (id(poolboy_ph_module_active).state) seen_active = true;
-          if (seen_active && !id(poolboy_ph_module_active).state) return {};
-          return x;
-    on_value:
-      then:
-        - script.execute: msg_led_update_water_color
+    update_interval: never
 
-  # Redox: dasselbe Prinzip, Gültigkeitsbit ist MBF_RX_STATUS (0x0108) Bit 14.
   - platform: modbus_controller
     modbus_controller_id: poolboy_device
-    id: poolboy_redox
-    name: "1.3 Redox"
+    id: poolboy_redox_raw
+    name: "1.3 Redox roh"
+    internal: true
     register_type: read
     address: 0x0103
     reuse_previous_range: false
     value_type: U_WORD
+
+  - platform: template
+    id: poolboy_redox
+    name: "1.3 Redox"
     unit_of_measurement: "mV"
     device_class: voltage
     state_class: measurement
-    filters:
-      - lambda: |-
-          static bool seen_active = false;
-          if (id(poolboy_redox_module_active).state) seen_active = true;
-          if (seen_active && !id(poolboy_redox_module_active).state) return {};
-          return x;
-    on_value:
-      then:
-        - script.execute: msg_led_update_water_color
+    update_interval: never
 
   # Alarm-Nibble von MBF_PH_STATUS (Bits 0-3). Kein state_class -- das ist
   # ein Zustandscode, keine Messgrösse. Klartext dazu liefert der
@@ -406,6 +440,47 @@ sensor:
     address: 0x0107
     reuse_previous_range: false
     bitmask: 0x000F
+
+  # MBF_PH_STATUS komplett (intern): entscheidet anhand Bit 14, ob der in
+  # diesem Zyklus gelesene pH-Rohwert veröffentlicht wird. Liegt im selben
+  # Modbus-Kommando wie "1.4 pH Status" -- keine zusätzliche Bus-Anfrage.
+  - platform: modbus_controller
+    modbus_controller_id: poolboy_device
+    id: poolboy_ph_status_raw
+    name: "1.4 pH Status roh"
+    internal: true
+    register_type: read
+    address: 0x0107
+    value_type: U_WORD
+    on_value:
+      then:
+        - lambda: |-
+            const bool active = (static_cast<uint16_t>(x) & 0x4000) != 0;
+            if (active) id(ph_seen_active) = true;
+            id(ph_valid) = active || !id(ph_seen_active);
+            if (id(ph_valid) && !std::isnan(id(poolboy_ph_raw).state))
+              id(poolboy_ph).publish_state(id(poolboy_ph_raw).state);
+
+  # MBF_RX_STATUS komplett (intern): dasselbe für Redox. Letztes Register
+  # dieses Kommandos -> hier endet die Auswertung eines Zyklus, darum wird
+  # auch die MSG-LED von hier aus aktualisiert.
+  - platform: modbus_controller
+    modbus_controller_id: poolboy_device
+    id: poolboy_rx_status_raw
+    name: "1.8 Redox Status roh"
+    internal: true
+    register_type: read
+    address: 0x0108
+    value_type: U_WORD
+    on_value:
+      then:
+        - lambda: |-
+            const bool active = (static_cast<uint16_t>(x) & 0x4000) != 0;
+            if (active) id(rx_seen_active) = true;
+            id(rx_valid) = active || !id(rx_seen_active);
+            if (id(rx_valid) && !std::isnan(id(poolboy_redox_raw).state))
+              id(poolboy_redox).publish_state(id(poolboy_redox_raw).state);
+        - script.execute: msg_led_update_water_color
 
 # ----------------------------------------------------------------------------
 #  Statusbits

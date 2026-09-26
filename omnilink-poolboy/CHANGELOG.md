@@ -4,6 +4,20 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 
 ---
 
+## [0.4.1] - 2026-09-26
+
+Behebt die beiden bekannten Mängel von 0.4.0. Konfiguration mit ESPHome 2026.9.0 validiert, Compile/Flash stehen noch aus.
+
+### Behoben
+- **pH-/Redox-Sperre prüft jetzt das Statusbit desselben Zyklus:** Rohwerte `0x0102`/`0x0103` werden intern gelesen (`1.2 pH roh`, `1.3 Redox roh`) und erst im `on_value` der internen Statusregister `0x0107`/`0x0108` (U_WORD, Bit 14) an die Template-Sensoren „1.2 pH" / „1.3 Redox" übergeben. Kein zusätzlicher Bus-Verkehr: die Statusregister liegen im bereits bestehenden Kommando ab `0x0107`. Namen, `device_class`, Einheit und `state_class` unverändert → Entity-IDs und Historie bleiben erhalten.
+- **MSG-LED:** Die Datenaktualität hängt am Modbus-Zyklus (Zeitstempel beim Lesen von `0x0108`), nicht mehr an pH/Redox. Gesperrte Messung (Messmodul inaktiv, z. B. Umwälzpumpe steht) = konstant **weiss** statt rot blinken. Rot blinken heisst wieder ausschliesslich: kein Modbus-Zyklus seit 45 s.
+- **Webserver:** `type: digest` wieder gesetzt (in 0.4.0 verloren gegangen; in 2026.9 weiterhin gültig, ohne die Angabe fällt ESPHome auf `basic` zurück).
+
+### Nach dem Flash prüfen
+- „1.2 pH" und „1.3 Redox" behalten ihre Entity-IDs (`sensor.omnilink_poolboy_1_2_ph`, `…_1_3_redox`) — keine Duplikate mit Suffix `_2`.
+
+---
+
 ## [0.4.0] - 2026-09-26
 
 Build unter ESPHome 2026.9.0, per OTA auf das Gerät geflasht. Umfang: Migration auf 2026.9 und Priorität 1 („Gültigkeit") aus dem Backlog.

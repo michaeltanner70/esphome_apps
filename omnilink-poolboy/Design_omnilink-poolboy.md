@@ -156,20 +156,33 @@ API-Encryption-Key, OTA-Passwort, AP-Passwort.
 
 ---
 
-## 7. Status-Visualisierung (v0.2.0 / v0.3.0)
+## 7. Status-Visualisierung (v0.2.0 / v0.3.0 / v0.4.1)
 
 | # | Frage | Antwort |
 |---|---|---|
 | 1 | STATUS-LED (blau, D0/GPIO0) | Diskrete LED, kein WS2812. Blinkt langsam (100 ms an / 1200 ms aus) solange keine API-Verbindung steht, schnell (100 ms an / 600 ms aus) sobald verbunden. Off-Zeiten bewusst länger als das MSG-Rot-Blinken (500/500ms) gewählt, damit sich die blaue LED optisch klar davon abhebt und nicht untergeht. |
 | 2 | Umsetzung STATUS | Endlos-`script` (`status_led_run`, per `on_boot` einmalig gestartet) mit `while: true`-Loop, das bei jedem Durchlauf die `api.connected`-Bedingung prüft und die passende An/Aus-Sequenz auf einen `output: platform: gpio` (GPIO0) fährt. |
 | 3 | MSG-LED (D3/GPIO21) | Physisch die vorhandene WS2812B (U1) — **teilt sich die Datenleitung mit einer diskreten grünen LED** (auf dem Schaltplan ursprünglich vage als "STAT/MSG" gruppiert, siehe Abschnitt 2). Ein Leitungstest hat bestätigt: ein reiner Digital-High-Pegel für 200 ms (statt WS2812-Protokoll-Timing) stört die WS2812 nicht, und die grüne LED reagiert sichtbar darauf. |
-| 4 | MSG-LED — Zustände | (a) seit mehr als `msg_led_stale_timeout_ms` (45s) kein gültiger pH-/Redox-Wert (Start **oder** späterer Kommunikations-Unterbruch): blinkt **rot**, 500 ms an / 500 ms aus (`msg_led_monitor`). (b) solange aktuelle Daten da sind: konstante Farbe nach Wasserwerte-Regeln (siehe unten). (c) bei jedem Modbus-Poll: 3× kurzes Flackern (je 50 ms aus / 50 ms Farbe wiederhergestellt, `msg_led_comm_blip`), danach bleibt die Farbe stehen. |
+| 4 | MSG-LED — Zustände | (a) seit mehr als `msg_led_stale_timeout_ms` (45s) kein vollständiger Modbus-Zyklus (Start **oder** späterer Kommunikations-Unterbruch): blinkt **rot**, 500 ms an / 500 ms aus (`msg_led_monitor`). (b) pH- oder Redox-Messung gesperrt (Messmodul inaktiv): konstant **weiss** (ab v0.4.1; in v0.4.0 blinkte die LED dann fälschlich rot). (c) sonst: konstante Farbe nach Wasserwerte-Regeln (siehe unten). (c) bei jedem Modbus-Poll: 3× kurzes Flackern (je 50 ms aus / 50 ms Farbe wiederhergestellt, `msg_led_comm_blip`), danach bleibt die Farbe stehen. |
 | 5 | Wasserwerte-Farbregeln | grün: 7.1 < pH < 7.3 **und** Redox > 650mV. rot: pH < 6.9 **oder** > 7.4 **oder** Redox < 600mV. gelb: alles dazwischen (bewusster Sicherheits-Zwischenzustand für die Grenzwert-Lücken, z. B. pH exakt 7.4). |
-| 6 | Umsetzung MSG | `light: platform: esp32_rmt_led_strip` auf GPIO21 (1 LED, WS2812), `internal: true`. Dimmung **zwingend** über den `brightness`-Parameter (Substitution `msg_led_brightness`, aktuell `0.5`) — ESPHomes `light.turn_on` normalisiert `red/green/blue` bei jedem Aufruf automatisch so, dass der grösste Kanal auf 1.0 gesetzt wird (`LightColorValues::normalize_color()`), kleine RGB-Werte allein dimmen also nicht. Farbe wird als Hue (0.0/1.0 je Kanal) in Globals (`msg_led_r/g/b`) gemerkt, damit der Kommunikations-Blitz sie nach dem Flackern wiederherstellen kann. `msg_led_last_update_ms` (Global, `uint32_t`, `millis()`-Zeitstempel) wird bei jedem `msg_led_update_water_color`-Lauf aktualisiert (ausgelöst über `on_value` von pH und Redox); `msg_led_monitor` prüft bei jedem 500ms-Zyklus per `while: true`-Loop, ob dieser Zeitstempel älter als `msg_led_stale_timeout_ms` ist (oder noch `0`, d. h. nie gesetzt) — ein einziger Mechanismus für Startphase **und** spätere Ausfälle. Der Kommunikations-Indikator hängt an `on_value` des zuerst abgefragten Registers „1.0 Ionisation" (0x0100) als Näherung für „ein Modbus-Poll-Zyklus lief". |
+| 6 | Umsetzung MSG | `light: platform: esp32_rmt_led_strip` auf GPIO21 (1 LED, WS2812), `internal: true`. Dimmung **zwingend** über den `brightness`-Parameter (Substitution `msg_led_brightness`, aktuell `0.5`) — ESPHomes `light.turn_on` normalisiert `red/green/blue` bei jedem Aufruf automatisch so, dass der grösste Kanal auf 1.0 gesetzt wird (`LightColorValues::normalize_color()`), kleine RGB-Werte allein dimmen also nicht. Farbe wird als Hue (0.0/1.0 je Kanal) in Globals (`msg_led_r/g/b`) gemerkt, damit der Kommunikations-Blitz sie nach dem Flackern wiederherstellen kann. `msg_led_last_update_ms` (Global, `uint32_t`, `millis()`-Zeitstempel) wird bei jedem `msg_led_update_water_color`-Lauf aktualisiert (ab v0.4.1 ausgelöst über `on_value` des internen Rohwert-Sensors `0x0108` — einmal pro Modbus-Zyklus, unabhängig davon, ob pH/Redox gerade gesperrt sind); `msg_led_monitor` prüft bei jedem 500ms-Zyklus per `while: true`-Loop, ob dieser Zeitstempel älter als `msg_led_stale_timeout_ms` ist (oder noch `0`, d. h. nie gesetzt) — ein einziger Mechanismus für Startphase **und** spätere Ausfälle. Der Kommunikations-Indikator hängt an `on_value` des zuerst abgefragten Registers „1.0 Ionisation" (0x0100) als Näherung für „ein Modbus-Poll-Zyklus lief". |
 | 7 | Non-blocking bestätigt | `delay:` in ESPHome-Scripts/Automationen läuft über den kooperativen Scheduler (`App.scheduler.set_timer_common_`, siehe `core/base_automation.h`), kein Busy-Wait. Die LED-Scripts blockieren daher weder die Hauptschleife noch die Modbus-UART-Kommunikation. |
 | 8 | HA-Sichtbarkeit | Beide LEDs sind reine Hardware-Statusanzeigen ohne eigene Home-Assistant-Entität. |
 
 ---
 
+## 8. Gültigkeit pH/Redox (v0.4.0 / v0.4.1)
+
+| # | Frage | Antwort |
+|---|---|---|
+| 1 | Auslöser | `1.2 pH` stand auffällig oft exakt auf 7.00, vor allem bei stehender Umwälzpumpe. Laut NeoPool-Doku ist `MBF_MEASURE_PH` (`0x0102`) nur gültig, wenn `MBF_PH_STATUS` (`0x0107`) Bit 14 gesetzt ist; analog Redox (`0x0103`) mit `MBF_RX_STATUS` (`0x0108`) Bit 14. |
+| 2 | Verhalten | Ist das Bit 0, wird **nichts** veröffentlicht (kein Ersatzwert, kein NaN). Home Assistant zeigt dann den letzten gültigen Wert. |
+| 3 | Zeitpunkt der Entscheidung | Die Register werden in Adressreihenfolge gelesen, pH/Redox also **vor** ihrem Statusbit. v0.4.0 prüfte deshalb per Filter das Bit des vorherigen Zyklus — beim Filterstopp konnte ein 7.00 durchrutschen und blieb dann stehen. Ab v0.4.1 werden die Rohwerte intern gelesen (`1.2 pH roh`, `1.3 Redox roh`) und erst im `on_value` der internen Statusregister (`0x0107`/`0x0108`, U_WORD) desselben Zyklus an die Template-Sensoren `1.2 pH` / `1.3 Redox` übergeben. `0x0107`/`0x0108` liegen im selben Modbus-Kommando, die Auswertung darin läuft in Adressreihenfolge (ESPHome `SensorItemsComparator`). |
+| 4 | Fail-safe | Gesperrt wird erst, nachdem das Bit seit dem Boot mindestens einmal gesetzt war. Setzt die Anlage es nie, bleibt das Verhalten wie vor v0.4.0. Nebenwirkung: nach einem Neustart bei stehender Pumpe werden Ersatzwerte veröffentlicht, bis die Pumpe wieder läuft. |
+| 5 | Entity-IDs | Die Template-Sensoren tragen dieselben Namen wie die bisherigen Modbus-Sensoren. Home Assistant bildet die Unique-ID aus MAC, Domain (`sensor`) und Namen — Entity-IDs und Historie bleiben erhalten. |
+| 6 | Grenzen | Die pH-/Redox-Sperre hängt am Messmodul-Bit, nicht an „1.7 Redox Flow" (`MBF_HIDRO_STATUS` Bit 3 = Durchfluss der Hydrolysezelle). |
+
+---
+
 *Hardware: OmniLink-C6 Rev 1.0 · MCU: Seeed XIAO ESP32-C6 · RS485: SN65HVD75DR ·
-Ziel-ESPHome: 2026.6.5 (ESP-IDF)*
+Ziel-ESPHome: 2026.9.x (ESP-IDF)*

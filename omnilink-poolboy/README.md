@@ -1,6 +1,6 @@
 # omnilink-poolboy – PoolBoy Modbus-Auslesung
 
-![Version](https://img.shields.io/badge/version-0.3.0-blue)
+![Version](https://img.shields.io/badge/version-0.4.1-blue)
 [![ESPHome](https://img.shields.io/badge/ESPHome-Ready-03a9f4?logo=esphome&logoColor=white)](https://esphome.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -23,7 +23,8 @@ Dieses Projekt beschreibt ein privates Bastelprojekt. Die Nutzung, der Nachbau s
 Der OmniLink-PoolBoy liest die Mess- und Statusregister des PoolBoy-Elektrolysegeräts zyklisch (alle 30 s) über Modbus RTU aus und stellt sie als Entitäten in Home Assistant bereit. Es findet (in dieser Version) **keine** aktive Steuerung statt – das Gerät ist rein lesend.
 
 * **Messwerte:** Ionisation (mA), Hydrolyse (%), pH, Redox (mV)
-* **Statusbits:** pH-Minus-Pumpe, Ionisierung (On-Target / Low / Zeit erreicht), Redox (On-Target / Low / Flow)
+* **Statusbits:** pH-Minus-Pumpe, pH-Messmodul aktiv / Durchfluss / Regelung aktiv, Redox-Messmodul aktiv, Ionisierung (On-Target / Low / Zeit erreicht), Redox (On-Target / Low / Flow)
+* **Gültigkeit:** pH und Redox werden nur veröffentlicht, solange das jeweilige Messmodul aktiv ist (Bit 14 von `0x0107` bzw. `0x0108`). Bei stehender Umwälzpumpe liefert die Anlage einen Ersatzwert (pH 7.00) — dieser wird verworfen, Home Assistant zeigt dann den letzten gültigen Wert.
 * **Diagnose:** über das gemeinsame [`common/diagnostics.yaml`](../common) Package (WLAN, Speicher, Uptime, Version, Restart-Buttons) sowie der API-Verbindungsstatus
 * **Konnektivität:** OTA-Updates, lokaler Webserver (Port 80), AP-Fallback
 * **Status-LEDs:** blaue STATUS-LED zeigt den ESPHome-/API-Verbindungsstatus per Blinkfrequenz, MSG-LED (WS2812) zeigt die Wasserwerte (pH/Redox) als Farbe und flackert bei jedem Modbus-Poll (siehe [Abschnitt 6](#6-status-anzeige-leds))
@@ -59,7 +60,9 @@ Der OmniLink-PoolBoy liest die Mess- und Statusregister des PoolBoy-Elektrolyseg
 | Slave-Adresse | `0x01` |
 | Registertyp | Input-Register (FC04) |
 | update_interval | 30 s |
-| command_throttle / send_wait / turnaround | 500 ms / 500 ms / 100 ms |
+| send_wait / turnaround | 500 ms / 100 ms |
+
+> `command_throttle` (500 ms) steht noch in der YAML, ist aber seit ESPHome 2026.9 wirkungslos — der Abstand zwischen den Anfragen ergibt sich nur noch aus `turnaround_time`.
 
 ### Registersatz
 
@@ -67,12 +70,16 @@ Der OmniLink-PoolBoy liest die Mess- und Statusregister des PoolBoy-Elektrolyseg
 | :--- | :---: | :--- | :--- |
 | 1.0 Ionisation | `0x0100` | U_WORD | mA, current |
 | 1.1 Hydrolyse | `0x0101` | U_WORD × 0,1 | %, acc 0 |
-| 1.2 pH | `0x0102` | U_WORD × 0,01 | ph, acc 2 |
-| 1.3 Redox | `0x0103` | U_WORD | mV, voltage |
+| 1.2 pH | `0x0102` | U_WORD × 0,01, nur wenn `0x0107` Bit 14 | ph, acc 2 |
+| 1.3 Redox | `0x0103` | U_WORD, nur wenn `0x0108` Bit 14 | mV, voltage |
 | 1.4 pH Status | `0x0107` | bitmask `0x000F` | numerisch |
+| 1.4 pH Messmodul aktiv / Durchfluss / Regelung aktiv | `0x0107` | bits `0x4000` / `0x0400` / `0x2000` | binary |
 | 1.5 pH Minus Pumpe | `0x0107` | bit `0x0800` | binary |
+| 1.8 Redox Messmodul aktiv | `0x0108` | bit `0x4000` | binary |
 | 1.6 Ionisierung On Target / Low / Zeit erreicht | `0x010C` | bits `0x0001` / `0x0002` / `0x0008` | binary |
 | 1.7 Redox On Target / Low / Flow | `0x010D` | bits `0x0001` / `0x0002` / `0x0008` | binary |
+
+1.0–1.3 haben `state_class: measurement` (Langzeitstatistik). „1.7 Redox …" liest `MBF_HIDRO_STATUS` (Hydrolyse); „1.7 Redox Flow" ist der Durchflusswächter der Hydrolysezelle und **kein** Gültigkeitskriterium für den Redoxwert.
 
 ---
 
@@ -116,10 +123,11 @@ Zeigt die Wasserwerte als gedimmte Farbe (`msg_led_brightness = 0.5`) und flacke
 
 | Zustand | Anzeige |
 | :--- | :--- |
-| Seit mehr als `msg_led_stale_timeout_ms` (45 s) kein gültiger pH-/Redox-Wert (Start **oder** Kommunikations-Unterbruch) | blinkt **rot**, 500 ms an / 500 ms aus |
+| Seit mehr als `msg_led_stale_timeout_ms` (45 s) kein vollständiger Modbus-Zyklus (Start **oder** Kommunikations-Unterbruch) | blinkt **rot**, 500 ms an / 500 ms aus |
+| pH- oder Redox-Messung gesperrt (Messmodul inaktiv, z. B. Umwälzpumpe steht) | konstant **weiss** |
 | pH > 7.1 und < 7.3 **und** Redox > 650 mV | konstant **grün** |
 | pH < 6.9 **oder** > 7.4 **oder** Redox < 600 mV | konstant **rot** |
 | alle übrigen Werte (Übergangs-/Warnbereich) | konstant **gelb** |
 | bei jedem Modbus-Poll-Zyklus (ausgelöst über „1.0 Ionisation") | flackert 3× kurz aus (je 50 ms aus / 50 ms Farbe wiederhergestellt), danach steht wieder die aktuelle Wasserwerte-Farbe |
 
-Die Grenzwerte lassen bewusst kleine Lücken (z. B. pH exakt 7.4): diese fallen auf **gelb** als sicherer Zwischenzustand. Die Daten-Aktualität wird bei jedem Blink-Zyklus (alle 500 ms) neu geprüft (`msg_led_monitor`, Zeitstempel der letzten Aktualisierung) — ein späterer Kommunikationsausfall wird also genauso erkannt wie die Startphase, mit demselben Mechanismus.
+Die Grenzwerte lassen bewusst kleine Lücken (z. B. pH exakt 7.4): diese fallen auf **gelb** als sicherer Zwischenzustand. Die Daten-Aktualität wird bei jedem Blink-Zyklus (alle 500 ms) neu geprüft (`msg_led_monitor`, Zeitstempel des letzten vollständigen Modbus-Zyklus, gesetzt beim Lesen von `0x0108`) — ein späterer Kommunikationsausfall wird also genauso erkannt wie die Startphase, mit demselben Mechanismus.
