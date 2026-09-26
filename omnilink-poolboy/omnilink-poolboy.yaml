@@ -29,6 +29,7 @@
 #    - MSG-LED: Datenaktualität hängt am Modbus-Zyklus, nicht mehr an pH/Redox.
 #      Gesperrte Messung (Umwälzpumpe steht) = konstant weiss statt rot blinken.
 #    - web_server auth wieder 'type: digest' (in 0.4.0 verloren gegangen)
+#    - OTA per Noise verschlüsselt (Schlüssel = API-Key) statt OTA-Passwort
 # =============================================================================
 
 substitutions:
@@ -91,7 +92,7 @@ api:
 
 ota:
   - platform: esphome
-    password: !secret poolboy_ota_key
+    encryption:   # leer = nimmt den API-Schlüssel (poolboy_api_key), ersetzt das OTA-Passwort
 
 wifi:
   ssid: !secret wifi_ssid

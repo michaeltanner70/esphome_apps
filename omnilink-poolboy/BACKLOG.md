@@ -20,7 +20,8 @@ Details zum Pin-Mapping: [Design-Dokument](./Design_omnilink-poolboy.md).
 - **LED-Skripte koordinieren:** `msg_led_monitor` schreibt im else-Zweig alle 500 ms die Farbe neu und kann mitten in den Dreifach-Blitz von `msg_led_comm_blip` fallen — der Blitz ist dadurch nicht zuverlässig sichtbar. Funktional harmlos. Abhilfe: Flag, das der Blitz setzt und der Monitor respektiert, oder Farbe nur bei Zustandswechsel schreiben.
 - **Kommunikations-Blitz an den Zyklus hängen:** Der Blitz hängt am `on_value` von „1.0 Ionisation" („erstes abgefragtes Register"). Seit 0.4.1 gibt es mit dem internen Statusregister `0x0108` einen Punkt, der sicher einmal pro vollständigem Zyklus feuert — dorthin verschieben, spätestens bei der Bereichszusammenfassung (unten).
 - **„1.4 pH Status" ganzzahlig anzeigen:** `accuracy_decimals: 0` ergänzen, heute zeigt HA „0.0" statt „0".
-- **Noise-OTA:** ESPHome 2026.9 kann OTA-Updates mit dem API-Schlüssel verschlüsseln (`encryption` unter `ota:`) und warnt, dass das OTA-Passwort Flash und RAM kostet. Ersetzt `poolboy_ota_key`. `continuous: true` für die Modbus-Reads bewusst **nicht** einsetzen, solange die Bereichszusammenfassung offen ist.
+- **Webserver-OTA:** Die Noise-Verschlüsselung (seit 0.4.1) gilt nur für ESPHome-OTA. Der Webserver bietet weiterhin einen unverschlüsselten `/update`-Endpunkt (geschützt nur durch das Digest-Login). Schliessen mit `web_server: ota: false`, falls Updates nur über ESPHome laufen.
+- **`continuous: true`** für die Modbus-Reads bewusst **nicht** einsetzen, solange die Bereichszusammenfassung offen ist.
 - **Veraltete Optionen (Warnungen unter 2026.9):** `command_throttle` ist wirkungslos (entfällt in 2027.2.0; Abstand nur noch über `turnaround_time` des `modbus`-Blocks), `rgb_order: GRB` → `channel_colors: GRB` (entfällt in 2027.3.0).
 
 ---

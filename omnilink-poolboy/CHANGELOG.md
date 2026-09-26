@@ -13,6 +13,9 @@ Behebt die beiden bekannten Mängel von 0.4.0. Konfiguration mit ESPHome 2026.9.
 - **MSG-LED:** Die Datenaktualität hängt am Modbus-Zyklus (Zeitstempel beim Lesen von `0x0108`), nicht mehr an pH/Redox. Gesperrte Messung (Messmodul inaktiv, z. B. Umwälzpumpe steht) = konstant **weiss** statt rot blinken. Rot blinken heisst wieder ausschliesslich: kein Modbus-Zyklus seit 45 s.
 - **Webserver:** `type: digest` wieder gesetzt (in 0.4.0 verloren gegangen; in 2026.9 weiterhin gültig, ohne die Angabe fällt ESPHome auf `basic` zurück).
 
+### Sicherheit
+- **OTA verschlüsselt (Noise):** `ota: encryption:` statt `password: !secret poolboy_ota_key`. Ein leeres `encryption:` übernimmt den API-Schlüssel `poolboy_api_key`; ESPHome 2026.9 hatte das OTA-Passwort als überflüssig (Flash/RAM) angemahnt. `poolboy_ota_key` wird nicht mehr gebraucht.
+
 ### Nach dem Flash prüfen
 - „1.2 pH" und „1.3 Redox" behalten ihre Entity-IDs (`sensor.omnilink_poolboy_1_2_ph`, `…_1_3_redox`) — keine Duplikate mit Suffix `_2`.
 
