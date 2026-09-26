@@ -4,6 +4,32 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 
 ---
 
+## [0.4.0] - 2026-09-26
+
+Build unter ESPHome 2026.9.0, per OTA auf das Gerät geflasht. Umfang: Migration auf 2026.9 und Priorität 1 („Gültigkeit") aus dem Backlog.
+
+### Geändert
+- **Migration ESPHome 2026.9:** `force_new_range: true` (in 2026.9 entfallen) → `reuse_previous_range: false` an den fünf Sensoren `0x0100`–`0x0103` und `0x0107`. 1:1-Entsprechung, weiterhin je ein eigenes Modbus-Kommando, keine Bereichszusammenfassung.
+- Header-Kommentar auf Ziel „ESPHome 2026.9.x", Änderungsblock im Header, `fw_version` 0.4.0.
+
+### Hinzugefügt
+- **Gültigkeitsbits als Binärsensoren:** `MBF_PH_STATUS` (`0x0107`) Bit 14 „1.4 pH Messmodul aktiv" (`0x4000`), Bit 10 „1.4 pH Durchfluss" (`0x0400`), Bit 13 „1.4 pH Regelung aktiv" (`0x2000`); `MBF_RX_STATUS` (`0x0108`) Bit 14 „1.8 Redox Messmodul aktiv" (`0x4000`). Der bestehende Sensor „1.4 pH Status" (Alarm-Nibble `0x000F`) bleibt unverändert.
+- **Fail-Safe-Sperre pH/Redox:** Filter-Lambda verwirft den Wert (kein Publish), sobald das Messmodul-Bit abfällt, nachdem es einmal gesetzt war. Ziel: den Ersatzwert 7.00 der Anlage nicht als Messwert veröffentlichen.
+- **Langzeitstatistik:** `state_class: measurement` für 1.0 Ionisation, 1.1 Hydrolyse, 1.2 pH und 1.3 Redox. Bewusst nicht für „1.4 pH Status" (Zustandscode).
+- **Registerzuordnung dokumentiert:** Die Sensoren „1.7 Redox On Target / Low / Flow" lesen `0x010D` = `MBF_HIDRO_STATUS` (Bit 0 / 1 / 3), nicht `MBF_RX_STATUS`. Namen bleiben (Entscheid 17.09.2026), weil die Hydrolyse vom Redoxmodul freigegeben und auf den Redox-Sollwert geregelt wird. „1.7 Redox Flow" ist der Durchflusswächter der Hydrolysezelle und **kein** Gültigkeitskriterium für den Redoxwert.
+
+### Entfernt
+- `type: digest` bei `web_server: auth` (in 0.3.0 eingeführt) ist in diesem Stand nicht mehr enthalten — in der Übergabe nicht erwähnt, Grund offen.
+
+### Bekannte Mängel (behoben in 0.4.1)
+- Die Sperre prüft das Statusbit des **vorherigen** Zyklus (pH/Redox werden vor `0x0107`/`0x0108` gelesen). Beim Filterstopp kann ein 7.00 durchrutschen, das HA dann bis zum nächsten gültigen Wert anzeigt.
+- Die MSG-LED blinkt bei gesperrten Werten rot (Kommunikationsausfall), obwohl der Bus läuft — z. B. jede Nacht bei stehender Umwälzpumpe.
+
+### Betrieb (Home Assistant, nicht in der YAML)
+- Die vier neuen Binärsensoren bekamen bei der Discovery das Bereichspräfix `schwimmbad_`. Im Entity-Registry umbenannt, bevor etwas darauf verwies: `binary_sensor.schwimmbad_omnilink_poolboy_…` → `binary_sensor.omnilink_poolboy_1_4_ph_messmodul_aktiv`, `…_1_4_ph_durchfluss`, `…_1_4_ph_regelung_aktiv`, `…_1_8_redox_messmodul_aktiv`. Neue Entitäten nach der Discovery auf dieses Präfix kontrollieren.
+
+---
+
 ## [0.3.0] - 2026-07-01
 
 ### Hinzugefügt

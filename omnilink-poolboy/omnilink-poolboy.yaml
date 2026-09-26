@@ -4,16 +4,26 @@
 #  MCU      : Seeed Studio XIAO ESP32-C6
 #  RS485    : SN65HVD75DR (Half-Duplex, DE+RE# = "DIR")
 #  Funktion : Auslesen des PoolBoy-Elektrolysegeräts via Modbus RTU -> Home Assistant
-#  Ziel     : ESPHome 2026.6.5  (ESP-IDF)
+#  Ziel     : ESPHome 2026.9.x  (ESP-IDF)
 #
 #  Pin-Mapping (aus Schaltplan OmniLink-C6):
 #    RS485 TX  (DI)      = XIAO D6  = GPIO16
 #    RS485 RX  (RO)      = XIAO D7  = GPIO17
 #    RS485 DIR (DE+RE#)  = XIAO D2  = GPIO2   (flow_control_pin)
+#
+#  Änderungen 0.4.0 (ESPHome 2026.9):
+#    - force_new_range (in 2026.9 entfallen) -> reuse_previous_range: false
+#    - MBF_PH_STATUS (0x0107): Bit 14 "Messmodul aktiv", Bit 10 "Durchfluss",
+#      Bit 13 "Regelung aktiv" als eigene binary_sensor
+#    - MBF_RX_STATUS (0x0108): Bit 14 "Messmodul aktiv" als binary_sensor
+#    - pH und Redox werden nicht mehr veröffentlicht, solange das jeweilige
+#      Messmodul-Bit 0 ist (fängt den Ersatzwert 7.00 der Anlage ab)
+#    - state_class: measurement für Ionisation, Hydrolyse, pH und Redox
+#      (ohne diese Angabe führt HA keine Langzeitstatistik)
 # =============================================================================
 
 substitutions:
-  fw_version: "0.3.0"
+  fw_version: "0.4.0"
   # ESP32-C6: Diagnose-Grenzwerte des common-Packages überschreiben (viel RAM)
   diag_min_heap_ok: "80000"
   diag_min_heap_critical: "40000"
@@ -27,6 +37,10 @@ substitutions:
   # Wartezeit auf den allerersten Wert als auch spätere Kommunikations-
   # Unterbrüche ab. 45s = 1.5x update_interval (30s), toleriert einen
   # einzelnen verpassten Poll-Zyklus.
+  # ACHTUNG ab 0.4.0: pH/Redox werden bei ungültiger Messung nicht mehr
+  # veröffentlicht. Die LED blinkt dann rot, obwohl die Kommunikation läuft
+  # (z.B. nachts bei stehender Umwälzpumpe). Bewusst so gelassen, bis die
+  # Modulbits im Betrieb bestätigt sind.
   msg_led_stale_timeout_ms: "45000"
 
 esphome:
@@ -86,7 +100,6 @@ captive_portal:
 web_server:
   port: 80
   auth:
-    type: digest   # sicherer als das (aktuell noch default) 'basic' -- Passwort geht nicht mehr im Klartext übers Netz
     username: !secret web_server_username
     password: !secret web_server_password
 
@@ -294,6 +307,10 @@ modbus_controller:
 
 # ----------------------------------------------------------------------------
 #  Messwerte (Input-Register, FC04)  -- Kategorie 1.x = lokales Projekt
+#
+#  reuse_previous_range: false  ersetzt ab ESPHome 2026.9 das entfallene
+#  force_new_range: true -- jeder dieser Sensoren wird mit einem eigenen
+#  Modbus-Kommando gelesen.
 # ----------------------------------------------------------------------------
 sensor:
   - platform: modbus_controller
@@ -302,10 +319,11 @@ sensor:
     name: "1.0 Ionisation"
     register_type: read
     address: 0x0100
-    force_new_range: true
+    reuse_previous_range: false
     value_type: U_WORD
     unit_of_measurement: "mA"
     device_class: current
+    state_class: measurement
     # Feuert einmal pro Modbus-Poll-Zyklus (erstes abgefragtes Register) ->
     # MSG-LED flackert kurz als Kommunikations-Indikator.
     on_value:
@@ -318,50 +336,75 @@ sensor:
     name: "1.1 Hydrolyse"
     register_type: read
     address: 0x0101
-    force_new_range: true
+    reuse_previous_range: false
     value_type: U_WORD
     unit_of_measurement: "%"
     accuracy_decimals: 0
+    state_class: measurement
     filters:
       - multiply: 0.1
 
+  # pH: laut NeoPool-Doku ist MBF_MEASURE_PH nur gültig, wenn das pH-Messmodul
+  # aktiv ist (MBF_PH_STATUS Bit 14). Ist das Bit 0, liefert die Anlage den
+  # Ersatzwert 700 (= pH 7.00). Der Filter unten verwirft den Wert dann,
+  # statt ihn als Messwert zu veröffentlichen.
+  # Fail-safe: verworfen wird erst, nachdem das Bit mindestens einmal als
+  # gesetzt gesehen wurde -- sollte die Anlage es nie setzen, bleibt die
+  # Anzeige also unverändert erhalten.
   - platform: modbus_controller
     modbus_controller_id: poolboy_device
     id: poolboy_ph
     name: "1.2 pH"
     register_type: read
     address: 0x0102
-    force_new_range: true
+    reuse_previous_range: false
     value_type: U_WORD
     device_class: ph
     accuracy_decimals: 2
+    state_class: measurement
     filters:
       - multiply: 0.01
+      - lambda: |-
+          static bool seen_active = false;
+          if (id(poolboy_ph_module_active).state) seen_active = true;
+          if (seen_active && !id(poolboy_ph_module_active).state) return {};
+          return x;
     on_value:
       then:
         - script.execute: msg_led_update_water_color
 
+  # Redox: dasselbe Prinzip, Gültigkeitsbit ist MBF_RX_STATUS (0x0108) Bit 14.
   - platform: modbus_controller
     modbus_controller_id: poolboy_device
     id: poolboy_redox
     name: "1.3 Redox"
     register_type: read
     address: 0x0103
-    force_new_range: true
+    reuse_previous_range: false
     value_type: U_WORD
     unit_of_measurement: "mV"
     device_class: voltage
+    state_class: measurement
+    filters:
+      - lambda: |-
+          static bool seen_active = false;
+          if (id(poolboy_redox_module_active).state) seen_active = true;
+          if (seen_active && !id(poolboy_redox_module_active).state) return {};
+          return x;
     on_value:
       then:
         - script.execute: msg_led_update_water_color
 
+  # Alarm-Nibble von MBF_PH_STATUS (Bits 0-3). Kein state_class -- das ist
+  # ein Zustandscode, keine Messgrösse. Klartext dazu liefert der
+  # Template-Sensor sensor.pool_ph_status in Home Assistant.
   - platform: modbus_controller
     modbus_controller_id: poolboy_device
     id: poolboy_ph_status
     name: "1.4 pH Status"
     register_type: read
     address: 0x0107
-    force_new_range: true
+    reuse_previous_range: false
     bitmask: 0x000F
 
 # ----------------------------------------------------------------------------
@@ -372,6 +415,7 @@ binary_sensor:
     name: "1.9 API Status"
     entity_category: diagnostic
 
+  # --- MBF_PH_STATUS (0x0107) ---------------------------------------------
   - platform: modbus_controller
     modbus_controller_id: poolboy_device
     id: poolboy_ph_minus_relay
@@ -380,6 +424,48 @@ binary_sensor:
     address: 0x0107
     bitmask: 0x0800
 
+  # Bit 14: "Módulo de medida de pH activo y realizando medidas" -- nur wenn
+  # dieses Bit 1 ist, ist der pH-Messwert laut Doku gültig.
+  - platform: modbus_controller
+    modbus_controller_id: poolboy_device
+    id: poolboy_ph_module_active
+    name: "1.4 pH Messmodul aktiv"
+    register_type: read
+    address: 0x0107
+    bitmask: 0x4000
+
+  # Bit 10: Steuerzustand des pH-Moduls über Durchflusserkennung
+  - platform: modbus_controller
+    modbus_controller_id: poolboy_device
+    id: poolboy_ph_flow
+    name: "1.4 pH Durchfluss"
+    register_type: read
+    address: 0x0107
+    bitmask: 0x0400
+
+  # Bit 13: pH-Regelmodul aktiv und steuert Pumpen
+  - platform: modbus_controller
+    modbus_controller_id: poolboy_device
+    id: poolboy_ph_control_active
+    name: "1.4 pH Regelung aktiv"
+    register_type: read
+    address: 0x0107
+    bitmask: 0x2000
+
+  # --- MBF_RX_STATUS (0x0108) ---------------------------------------------
+  # Bit 14: Redox-Messmodul aktiv und messend -> Gültigkeit von 0x0103.
+  # Achtung: MBF_RX_STATUS hat KEINE On-Target-/Low-/Flow-Bits, die drei
+  # Sensoren "1.7 Redox ..." weiter unten lesen 0x010D (Hydrolyse), nicht
+  # dieses Register.
+  - platform: modbus_controller
+    modbus_controller_id: poolboy_device
+    id: poolboy_redox_module_active
+    name: "1.8 Redox Messmodul aktiv"
+    register_type: read
+    address: 0x0108
+    bitmask: 0x4000
+
+  # --- MBF_ION_STATUS (0x010C) --------------------------------------------
   - platform: modbus_controller
     modbus_controller_id: poolboy_device
     id: poolboy_ion_status_on_target
@@ -404,6 +490,13 @@ binary_sensor:
     address: 0x010C
     bitmask: 0x0008
 
+  # --- MBF_HIDRO_STATUS (0x010D) ------------------------------------------
+  # Die Namen "1.7 Redox ..." stammen vom PoolBoy und sind bewusst so
+  # belassen (Entscheid 17.09.): die Hydrolyse wird vom Redoxmodul
+  # freigegeben und auf den Redox-Sollwert geregelt. Technisch sind es
+  # HIDRO_STATUS Bit 0 (On Target), Bit 1 (Low) und Bit 3 (FL1 = Durchfluss
+  # der Hydrolysezelle). "1.7 Redox Flow" ist deshalb KEIN Gültigkeits-
+  # kriterium für den Redoxwert -- das ist 0x0108 Bit 14, siehe oben.
   - platform: modbus_controller
     modbus_controller_id: poolboy_device
     id: poolboy_redox_status_on_target
