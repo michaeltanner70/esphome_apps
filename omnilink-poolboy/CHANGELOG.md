@@ -4,6 +4,21 @@ Alle wichtigen Änderungen an diesem Projekt werden in dieser Datei dokumentiert
 
 ---
 
+## [0.5.0] - 2026-10-25
+
+Konfiguration mit ESPHome 2026.9.0 validiert, Compile/Flash stehen noch aus.
+
+### Behoben
+- **pH 7.00 bei stehender Pumpe:** pH und Redox werden nur noch veröffentlicht, wenn zusätzlich zum Messmodul-Bit 14 der Durchfluss ansteht (`MBF_PH_STATUS` Bit 10) — und zwar seit mindestens `flow_settle_ms` (90 s), damit die Einlaufphase nach dem Pumpenstart nicht durchrutscht. Befund 27.09.–25.10.2026: Bit 14 bleibt bei stehender Pumpe gesetzt, die 7.00 waren keine Ersatzwerte, sondern Driftwerte ohne Durchfluss, die die Anlage um pH 7 nur in Zehnteln ausgibt. Ohne Durchfluss zeigt Home Assistant jetzt den letzten Wert vor dem Pumpenstopp, die MSG-LED leuchtet weiss.
+
+### Geändert
+- **Modbus-Ausfall sofort sichtbar:** `on_offline`/`on_online` des `modbus_controller` (in 2026.9 der YAML-Weg zu den Callbacks bei ausbleibender Antwort) setzen ein Flag, die MSG-LED blinkt sofort rot statt erst nach 45 s. Der Timeout bleibt als Fallback.
+- **Kommunikations-Blitz am Zyklusende:** ausgelöst nach dem Statusregister `0x0108` statt über `on_value` von „1.0 Ionisation" — feuert genau einmal pro vollständigem Zyklus.
+- **LED-Skripte koordiniert:** `msg_led_monitor` stellt die Farbe nur noch einmal beim Verlassen des Ausfall-Zustands wieder her und nie, während `msg_led_comm_blip` läuft. Vorher schrieb er sie alle 500 ms neu und konnte den Blitz verschlucken.
+- **„1.4 pH Status" ganzzahlig:** `accuracy_decimals: 0`, Home Assistant zeigt „0" statt „0.0".
+
+---
+
 ## [0.4.2] - 2026-09-26
 
 ### Geändert

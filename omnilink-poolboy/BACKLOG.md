@@ -16,11 +16,7 @@ Details zum Pin-Mapping: [Design-Dokument](./Design_omnilink-poolboy.md).
 
 ## Software
 
-- **Präzisere Kommunikations-/Ausfallerkennung:** ESPHome 2026.7.0 hat den Modbus-Client um zwei neue Callbacks erweitert — `on_modbus_no_response()` und `on_modbus_not_sent()`. Damit liesse sich `msg_led_monitor`/`msg_led_comm_blip` künftig direkt an echte Modbus-Antwort-/Sendefehler koppeln, statt sich nur auf `on_value` der Sensoren und den reinen `msg_led_stale_timeout_ms`-Timeout zu verlassen. Nicht dringend, da das aktuelle Timeout-basierte Verfahren bereits funktioniert.
-- **LED-Skripte koordinieren:** `msg_led_monitor` schreibt im else-Zweig alle 500 ms die Farbe neu und kann mitten in den Dreifach-Blitz von `msg_led_comm_blip` fallen — der Blitz ist dadurch nicht zuverlässig sichtbar. Funktional harmlos. Abhilfe: Flag, das der Blitz setzt und der Monitor respektiert, oder Farbe nur bei Zustandswechsel schreiben.
-- **Kommunikations-Blitz an den Zyklus hängen:** Der Blitz hängt am `on_value` von „1.0 Ionisation" („erstes abgefragtes Register"). Seit 0.4.1 gibt es mit dem internen Statusregister `0x0108` einen Punkt, der sicher einmal pro vollständigem Zyklus feuert — dorthin verschieben, spätestens bei der Bereichszusammenfassung (unten).
-- **„1.4 pH Status" ganzzahlig anzeigen:** `accuracy_decimals: 0` ergänzen, heute zeigt HA „0.0" statt „0".
-- **`continuous: true`** für die Modbus-Reads bewusst **nicht** einsetzen, solange die Bereichszusammenfassung offen ist.
+- **Hinweis:** `continuous: true` für die Modbus-Reads bewusst **nicht** einsetzen, solange die Bereichszusammenfassung (unten) offen ist.
 
 ---
 
@@ -62,9 +58,9 @@ Registersatz hinter der NeoPool-Steuerung (Slave 1, 19200 8N1). Die Gültigkeit 
 ### Abnahmekriterien
 | Kriterium | Stand |
 | :--- | :--- |
-| Build unter 2026.9 fehlerfrei | erfüllt (0.4.0 auf dem Gerät, keine Modbus-Fehler); 0.4.1 validiert, Compile ausstehend |
+| Build unter 2026.9 fehlerfrei | erfüllt (0.4.2 läuft seit 26.09.2026); 0.5.0 validiert, Compile ausstehend |
 | pH, Redox, Ionisation, Hydrolyse in der Langzeitstatistik | erfüllt; Temperatur offen (Priorität 2) |
 | „pH Messmodul aktiv" während Filterbetrieb `on` | erfüllt |
-| Nach dem Filterstopp kein neuer pH-Wert, insbesondere kein 7.00 | offen — erst mit 0.4.1 aussagekräftig |
-| „pH Messmodul aktiv" fällt in den bisherigen 7.00-Phasen auf `off` | offen — entscheidender Test: bleibt das Bit `on`, ist 7.00 ein echter Messwert (Elektrode/Kalibrierung) |
+| „pH Messmodul aktiv" fällt in den bisherigen 7.00-Phasen auf `off` | **nein** — Bit 14 bleibt bei stehender Pumpe gesetzt (Befund 27.09.–25.10.2026). 7.00 ist ein Driftwert ohne Durchfluss, kein Ersatzwert; Abhilfe in 0.5.0 über das Durchfluss-Bit 10 |
+| Nach dem Filterstopp kein neuer pH-/Redox-Wert, insbesondere kein 7.00 | offen — mit 0.5.0 nach dem nächsten Filterstopp prüfen (MSG-LED weiss, keine Werte zwischen 19:00 und 07:01:30) |
 | „Filtration" (`RELAY_STATE` Bit 1) deckt sich mit `binary_sensor.poolcontrol_filter` | offen (Priorität 2) |
